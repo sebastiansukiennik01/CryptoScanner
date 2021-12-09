@@ -17,7 +17,7 @@ pd.set_option("display.width", None)
 
 class BitQuery:
 
-    def __init__(self, baseAddress, quoteAddress, from_date, minute_interval):
+    def __init__(self, baseAddress, quoteAddress, from_date="2021-11-01", minute_interval=5):
         """
         Initializes BitQuery object with headers: API key and query: contains query expression, which states which parameters (symbol, address, open, close, etc.)
         should be returned
@@ -136,55 +136,58 @@ class TokenInfo:
 
     def cmc_new_names(self):
         """
-        Calls CoinMarketCap and extracts last 30 new added tokens.
+        Calls CoinMarketCap and extracts info about last 30 added tokens.
         :return: 2 dim list of tuples (name, symbol)
         """
         request = requests.get("https://coinmarketcap.com/new/")
         all_names = []
         all_symbols = []
         all_prices = []
-        all_h1 = []
-        all_h24 = []
         all_blockchain = []
         all_timeago = []
+        all_hrefs = []
 
         if request.status_code == 200:
             result = request.text
             names = result.rsplit('"sc-1eb5slv-0 iworPT">')
             symbols = result.rsplit('"sc-1eb5slv-0 gGIpIK coin-item-symbol"')
             timeago = result.rsplit(' ago')
+            hrefs = result.rsplit('" class="cmc-link"><div class="sc-16r8icm-0 sc-1teo54s-0 dBKWCw')
 
 
             for s in symbols:
                 all_symbols.append(s.rsplit(">")[1].rsplit("<")[0])
+                all_prices.append(s.rsplit("<")[8].rsplit(">$"))
             for n in names:
                 all_names.append(n.rsplit("<")[0])
             for t in timeago:
                 all_timeago.append(t.rsplit(">")[-1])
-            for b in timeago:
-                all_blockchain.append(b.rsplit(">")[-4].rsplit("<")[0])
-            for p in symbols:
-                all_prices.append(p.rsplit("<")[8].rsplit(">$"))
-            del all_prices[0]
-            del all_prices[-1]
+                all_blockchain.append(t.rsplit(">")[-4].rsplit("<")[0])
+
+            for h in hrefs:
+                all_hrefs.append(h.rsplit('href="')[-1])
+
+            print(len(all_prices))
             for a in all_prices:
-                del a[0]
+                if len(a) != 2:
+                    pass
 
             del all_blockchain[-1]
             del all_names[0]
             del all_symbols[0]
             del all_timeago[-1]
             del all_prices[-1]
+            del all_hrefs[-1]
 
-            names_symbols = list(zip(all_names, all_symbols, all_timeago, all_blockchain, all_prices))
+            print(all_prices)
+            names_symbols = pd.DataFrame({"Names": all_names, "Symbols": all_symbols, "Time Ago": all_timeago, "Blockchain": all_blockchain, "Prices": all_prices, "Hrefs": all_hrefs})
             return names_symbols
 
 
 if __name__ == '__main__':
 
     ns = TokenInfo().cmc_new_names()
-    for n in ns:
-        print(n)
+    print(ns)
 
 
     '''t1 = time.time()
