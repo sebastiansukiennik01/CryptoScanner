@@ -17,7 +17,7 @@ pd.set_option("display.width", None)
 
 class BitQuery:
 
-    def __init__(self, baseAddress="0xD302c09BC32aEF53146B6bA7BC420F5CACa897f6", quoteAddress="0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", from_date="2021-11-01", minute_interval=5):
+    def __init__(self, baseAddress="0xD302c09BC32aEF53146B6bA7BC420F5CACa897f6", quoteAddress="0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", from_date="2021-11-01", minute_interval=1):
         """
         Initializes BitQuery object with headers: API key and query: contains query expression, which states which parameters (symbol, address, open, close, etc.)
         should be returned
@@ -80,7 +80,7 @@ class BitQuery:
         for index, row in tokens_df.iterrows():
             if row["Blockchain"] == "Binance Coin":
                 print(index, row)
-                self.baseAddress = row['Address']
+                self.__init__(baseAddress=row['Address'])
                 result = self.run_query()
                 self.save_query(result, row['Symbol'])
                 print(f'{row["Symbol"]} with adress: {row["Address"]} has been successfully saved into text file.')
@@ -114,11 +114,9 @@ class Processing:
         """
 
         file_paths = glob.glob(f"Data/Text/*.txt")
-        print(file_paths)
         coins_dict = {}
         for path in file_paths:
             f_name = path.rsplit('/')[2][:-4]
-            print(f_name)
             with open(f'Data/Text/{f_name}.txt') as json_file:
                 data = json.load(json_file)
                 coins_dict[f_name] = data
@@ -132,10 +130,8 @@ class Processing:
         :param coins_dict: Dictionary of coin paris from read_file
         :return: Pandas DataFrame
         """
-        print(coins_dict.keys())
         names = list(coins_dict.keys())
         coins_df_dict = {}
-
 
         for name in names:
             coin_data = coins_dict[name]['data']['ethereum']['dexTrades']
@@ -206,7 +202,6 @@ class TokenInfo:
             for h in hrefs:
                 all_hrefs.append(h.rsplit('href="')[-1])
 
-            print(len(all_prices))
             for a in all_prices:
                 if len(a) == 2:
                     del a[0]
