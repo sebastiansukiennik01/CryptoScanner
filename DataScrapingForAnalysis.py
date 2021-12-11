@@ -17,7 +17,7 @@ pd.set_option("display.width", None)
 
 class BitQuery:
 
-    def __init__(self, baseAddress, quoteAddress, from_date="2021-11-01", minute_interval=5):
+    def __init__(self, baseAddress="0xD302c09BC32aEF53146B6bA7BC420F5CACa897f6", quoteAddress="0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", from_date="2021-11-01", minute_interval=5):
         """
         Initializes BitQuery object with headers: API key and query: contains query expression, which states which parameters (symbol, address, open, close, etc.)
         should be returned
@@ -70,15 +70,51 @@ class BitQuery:
             json.dump(result, f)
         f.close()
 
+    def run_multiple_queries(self, tokens_df):
+        """
+        Calls run_query() method, and then saves the result tp text files via save_query() method. At the end adds collected tokens to file where all collected symbols, and addreses are stored.
+        :param tokens_df:
+        :return:
+        """
+        symb_add = [[], []]
+        for index, row in tokens_df.iterrows():
+            if row["Blockchain"] == "Binance Coin":
+                print(index, row)
+                self.baseAddress = row['Address']
+                result = self.run_query()
+                self.save_query(result, row['Symbol'])
+                print(f'{row["Symbol"]} with adress: {row["Address"]} has been successfully saved into text file.')
+                symb_add[0].append(row['Symbol'])
+                symb_add[1].append(row['Address'])
+
+        self.add_to_tokens_list(symb_add)
+
+    def add_to_tokens_list(self, symb_add):
+        """
+        Saves tokens symbols and adresses in order to keep track about already collected data.
+        :param symb_add: 2 dim list of tokens symbols and addresses
+        :return: None
+        """
+        try:
+            old_tokens = pd.read_csv("Data/Tokens.csv", index_col=0)
+            new_tokens = pd.DataFrame({"Symbol": symb_add[0], "Address": symb_add[1]})
+            df = pd.concat([old_tokens, new_tokens]).drop_duplicates(subset=['Symbol', 'Address'])
+            df = df.reset_index(drop=True)
+            df.to_csv("Data/Tokens.csv")
+        except:
+            new_tokens = pd.DataFrame({"Symbol": symb_add[0], "Address": symb_add[1]})
+            new_tokens.to_csv("Data/Tokens.csv")
 
 class Processing:
 
-    def read_files(self, file_name):
+    def read_files(self):
         """
         Reads all files from Data/Text/*.txt and returns a dictionary with exchange pair names as keys, and JSON dictionaries as values
         :return: Dictionary
         """
-        file_paths = glob.glob(f"Data/Text/{file_name}.txt")
+
+        file_paths = glob.glob(f"Data/Text/*.txt")
+        print(file_paths)
         coins_dict = {}
         for path in file_paths:
             f_name = path.rsplit('/')[2][:-4]
@@ -94,20 +130,23 @@ class Processing:
         Converts dictionary of JSON data into dictionary containing pandas DataFrames
         Saves dataframes to CSV if requested
         :param coins_dict: Dictionary of coin paris from read_file
-        :return:
+        :return: Pandas DataFrame
         """
-        name = list(coins_dict.keys())[0]
-        coins_dict = coins_dict[name]['data']['ethereum']['dexTrades']
+        print(coins_dict.keys())
+        names = list(coins_dict.keys())
         coins_df_dict = {}
-        temp = []
 
-        for i in coins_dict:
-            temp.append(self.flatten(i))
 
-        df = pd.DataFrame(temp)
-        coins_df_dict[name] = df
-        if save:
-            df.to_csv(f"Data/CSV/{name}.csv")
+        for name in names:
+            coin_data = coins_dict[name]['data']['ethereum']['dexTrades']
+            temp = []
+            for i in coin_data:
+                temp.append(self.flatten(i))
+
+            df = pd.DataFrame(temp)
+            coins_df_dict[name] = df
+            if save:
+                df.to_csv(f"Data/CSV/{name}.csv")
 
         return coins_df_dict
 
@@ -169,8 +208,8 @@ class TokenInfo:
 
             print(len(all_prices))
             for a in all_prices:
-                if len(a) != 2:
-                    pass
+                if len(a) == 2:
+                    del a[0]
 
             del all_blockchain[-1]
             del all_names[0]
@@ -179,29 +218,42 @@ class TokenInfo:
             del all_prices[-1]
             del all_hrefs[-1]
 
-            print(all_prices)
-            names_symbols = pd.DataFrame({"Names": all_names, "Symbols": all_symbols, "Time Ago": all_timeago, "Blockchain": all_blockchain, "Prices": all_prices, "Hrefs": all_hrefs})
+            names_symbols = pd.DataFrame({"Name": all_names, "Symbol": all_symbols, "Time Ago": all_timeago, "Blockchain": all_blockchain, "Price": all_prices, "CMCHref": all_hrefs})
             return names_symbols
+
+    def get_token_address(self, df_cmc_new: pd.DataFrame):
+        """
+        Calls CoinMarketCap with request for each tokens site, then gets address, updates and returns new DataFrame
+        :param df_cmc_new: Pandas DataFrame containing info about token, most important is column "Href" with CoinMarketCap hrefs to each token
+        :return: Pandas DataFrame
+        """
+
+        all_adresses = []
+        for href in df_cmc_new["CMCHref"].values:
+            cmc_token_req = requests.get("https://coinmarketcap.com" + href)
+            if cmc_token_req.status_code == 200:
+                result = cmc_token_req.text
+                temp = result.rsplit("sc-10up5z1-5 jlEjUY", 1)
+                address = temp[1].split('href="')[1].split('" class="cmc-link"')[0].split("/")[-1]
+                all_adresses.append(address)
+        df_cmc_new["Address"] = all_adresses
+        return df_cmc_new
 
 
 if __name__ == '__main__':
 
+    t1 = time.time()
+
     ns = TokenInfo().cmc_new_names()
-    print(ns)
-
-
-    '''t1 = time.time()
-    token_adresses = [["VML", "0xD302c09BC32aEF53146B6bA7BC420F5CACa897f6"], ["FCP", "0x155e8A74dAC3d8560DDaBBc26aa064B764535193"]]
-    for ta in token_adresses:
-        bq = BitQuery(ta[1], "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", "2021-11-01", 1)
-        result = bq.run_query()
-        bq.save_query(result, ta[0])
-        token = Processing().read_files(ta[0])
-        df = Processing().txt_into_pd(token, save=True)
-        print(df[ta[0]].tail())
+    ns2 = TokenInfo().get_token_address(ns)
+    print(ns2)
+    bq = BitQuery().run_multiple_queries(ns2)      #Downloading new data from CMC
+    token = Processing().read_files()
+    df = Processing().txt_into_pd(token, save=True)
 
     t2 = time.time()
-    print(t2-t1)'''
+    print("\n\n\nTime: ", t2-t1)
+
 
 
 
