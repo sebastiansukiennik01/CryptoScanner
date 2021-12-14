@@ -29,7 +29,7 @@ def plot_PriceVsValue(df):
         ax2 = ax[j][i].twinx()
         ax2.set_ylabel('Trade Amount', color='red')
         ax2.tick_params(axis='y', labelcolor='red')
-        ax2.plot(item[1]['Datetime'], item[1]['trades'], color='red', alpha=0.3)
+        ax2.plot(item[1]['Datetime'], item[1]['tradeAmount'], color='red', alpha=0.3)
         if i == 1:
             i = 0
             j = 1
@@ -63,7 +63,7 @@ def loadData(names:list):
                 df.drop(columns="Unnamed: 0", inplace=True)
 
                 t1 = df.iloc[-1, 0] - datetime.timedelta(days=1)
-                last24[n] = df[df['Datetime'] > t1]
+                last24[n] = df
         plot_PriceVsValue(last24)
 
 if __name__ == '__main__':

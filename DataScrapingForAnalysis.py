@@ -136,8 +136,13 @@ class Processing:
         for name in names:
             coin_data = coins_dict[name]['data']['ethereum']['dexTrades']
             temp = []
-            for i in coin_data:
-                temp.append(self.flatten(i))
+
+            try:
+                for i in coin_data:
+                    temp.append(self.flatten(i))
+            except:
+                print(type(coin_data))
+                print(name)
 
             df = pd.DataFrame(temp)
             coins_df_dict[name] = df
@@ -223,14 +228,19 @@ class TokenInfo:
         :return: Pandas DataFrame
         """
 
+
         all_adresses = []
         for href in df_cmc_new["CMCHref"].values:
             cmc_token_req = requests.get("https://coinmarketcap.com" + href)
             if cmc_token_req.status_code == 200:
                 result = cmc_token_req.text
                 temp = result.rsplit("sc-10up5z1-5 jlEjUY", 1)
-                address = temp[1].split('href="')[1].split('" class="cmc-link"')[0].split("/")[-1]
-                all_adresses.append(address)
+                try:
+                    address = temp[1].split('href="')[1].split('" class="cmc-link"')[0].split("/")[-1]
+                    all_adresses.append(address)
+                except:
+                    all_adresses.append("bledny")
+                    print("bledny adres")
         df_cmc_new["Address"] = all_adresses
         return df_cmc_new
 
@@ -239,10 +249,10 @@ if __name__ == '__main__':
 
     t1 = time.time()
 
-    ns = TokenInfo().cmc_new_names()
+    '''ns = TokenInfo().cmc_new_names()
     ns2 = TokenInfo().get_token_address(ns)
     print(ns2)
-    bq = BitQuery().run_multiple_queries(ns2)      #Downloading new data from CMC
+    #bq = BitQuery().run_multiple_queries(ns2)      #Downloading new data from CMC '''
     token = Processing().read_files()
     df = Processing().txt_into_pd(token, save=True)
 
