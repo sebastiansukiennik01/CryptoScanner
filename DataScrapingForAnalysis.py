@@ -249,10 +249,10 @@ if __name__ == '__main__':
 
     t1 = time.time()
 
-    '''ns = TokenInfo().cmc_new_names()
+    ns = TokenInfo().cmc_new_names()
     ns2 = TokenInfo().get_token_address(ns)
     print(ns2)
-    #bq = BitQuery().run_multiple_queries(ns2)      #Downloading new data from CMC '''
+    bq = BitQuery().run_multiple_queries(ns2)      #Downloading new data from CMC
     token = Processing().read_files()
     df = Processing().txt_into_pd(token, save=True)
 
