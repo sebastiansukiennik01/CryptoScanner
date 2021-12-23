@@ -139,78 +139,55 @@ def open_Positions(df, sl=0.75, first_tp=0.5, first_tp_amount=0.5, trailing_sl=0
     result = {}
     for name, d in df.items():
         result_df = pd.DataFrame()
-        if(name == 'EFT'):
-            '''print(d.head())
-            entries_idx = d.index[d['Warunek1']].to_numpy()
-            entries_idx = np.append(entries_idx, len(d.index))
-            print(entries_idx)
-            open_idx = entries_idx[0]+1
-            pos_part = 1
-            sl_static = sl
+        entries_idx = d.index[d['Warunek1']].to_numpy()
+        entries_idx = np.append(entries_idx, len(d.index))
+        open_idx = entries_idx[0]+1
+        print(entries_idx)
+        print(open_idx)
+        pos_part = 1
+        sl_static = sl
+        tp_static = first_tp
+        old_open_idx = open_idx
 
-            for i in range(0, len(entries_idx)-1):
-                if pos_part == 0: pos_part = 1
+        while open_idx < len(d.index) or open_idx != None:
+            # Otwieranie pozycji na początku, cała pozycja
+            if pos_part == 1:
 
-                if sl == sl_static:
-                    # osiagnal sl ale nie osiagnal tp ----> zamkniecie całej
-                    if (d.loc[entries_idx[i]:entries_idx[i+1], 'L'].min() <= d.loc[open_idx, 'O'] * sl) and (d.loc[entries_idx[i]:entries_idx[i+1], 'H'].max() < d.loc[open_idx, 'O'] * (1+first_tp)):
+                tp_warunek = (d.loc[open_idx+1:, 'H'] >= d.loc[open_idx, 'O'] * (1+first_tp)).to_numpy()
+                if sum(tp_warunek) == 0:
+                    tpidx = len(d.index)
+                else:
+                    tpidx = np.where(tp_warunek == True)[0][0] + open_idx
 
-                        temp = d.loc[entries_idx[i] : entries_idx[i+1], 'L'] < d.loc[open_idx, 'O'] * sl
-                        slidx = temp.loc[temp == True].first_valid_index()
+                sl_warunek = (d.loc[open_idx+1:, 'L'] <= d.loc[open_idx, 'O'] * sl).to_numpy()
+                if sum(sl_warunek) == 0:
+                    slidx = len(d.index)
+                else:
+                    slidx = np.where(sl_warunek == True)[0][0] + open_idx
+
+                #print(open_idx, tpidx, slidx)
+
+                if slidx != len(d.index) or tpidx != len(d.index):
+                    if slidx < tpidx:
 
                         result_df = result_df.append(pd.DataFrame(
                             {'Open Idx': [open_idx],
-                             'Open Datetime': [d.loc[open_idx, 'Datetime']],
-                             'Open price': [d.loc[open_idx, 'O']],
-                             'Exit Index': [slidx],
-                             'Exit Datetime': [d.loc[slidx, 'Datetime']],
-                             'Part of position': [pos_part],
-                             'Result': [sl]}), ignore_index=True)
-                        open_idx = entries_idx[i+1]+1               # deklaruje kolejne otwrcie index na następny najbliższy entry point
-                        pos_part = 0
+                            'Open Datetime': [d.loc[open_idx, 'Datetime']],
+                            'Open price': [d.loc[open_idx, 'O']],
+                            'Exit Index': [slidx],
+                            'Exit Datetime': [d.loc[slidx, 'Datetime']],
+                            'Part of position': [pos_part],
+                            'Result': [sl]}), ignore_index=True)
+                        pos_part = 1
+                        open_idx = entries_idx[np.where(slidx < entries_idx)[0][0]]
+                        sl = sl_static
+                        first_tp = tp_static
+
+                        #print(f"1.  nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
+                        #print(result_df)
                         continue
 
-                    # osiaganal sl I osiaganal tp ---> sprawdzamy co najpierw i albo zamykam całosc albo zamykam pol
-                    if((d.loc[entries_idx[i]:entries_idx[i+1], 'L'].min() <= d.loc[open_idx, 'O'] * sl) and (d.loc[entries_idx[i]:entries_idx[i+1], 'H'].max() >= d.loc[open_idx, 'O'] * (1+first_tp))):
-
-                        slidx = d[d['L'] < d.loc[open_idx, 'O'] * sl].first_valid_index()
-                        tpidx = d[d['H'] > d.loc[open_idx, 'O'] * first_tp].first_valid_index()
-                        print(slidx)
-                        print(tpidx)
-
-                        if slidx < tpidx:
-                            #zamykam całą pozycje
-                            result_df = result_df.append(pd.DataFrame(
-                                {'Open Idx': [open_idx],
-                                 'Open Datetime': [d.loc[open_idx, 'Datetime']],
-                                 'Open price': [d.loc[open_idx, 'O']],
-                                 'Exit Index': [slidx],
-                                 'Exit Datetime': [d.loc[slidx, 'Datetime']],
-                                 'Part of position': pos_part,
-                                 'Result': [sl]}), ignore_index=True)
-                            open_idx = entries_idx[i+1]+1               # deklaruje kolejne otwrcie index na następny najbliższy entry point
-                            pos_part = 0
-                            continue
-                        else:
-                            #zamykam pierwsza polowe po tp, druga po przesuniętym maksymalnie sl
-                            k = (d.loc[entries_idx[i]:entries_idx[i+1], 'H'].max() - d.loc[open_idx, 'O'])/(d.loc[open_idx, 'O']*sl_static)
-                            sl = sl_static + (k + 1)*sl_static
-
-                            result_df = result_df.append(pd.DataFrame(
-                                {'Open Idx': [open_idx],
-                                 'Open Datetime': [d.loc[open_idx, 'Datetime']],
-                                 'Open price': [d.loc[open_idx, 'O']],
-                                 'Exit Index': [slidx],
-                                 'Exit Datetime': [d.loc[slidx, 'Datetime']],
-                                 'Part of position': first_tp_amount,
-                                 'Result': [1 + first_tp*first_tp_amount + sl*(1-first_tp_amount)]}), ignore_index=True)
-                            open_idx = entries_idx[i+1]+1
-                            pos_part = 0
-                            continue
-
-                    # NIE osiagnal sl i osiagnal tp -----> zamyakm polowe i przesuwam SL o maksymalmna wielokrotnosc trailing_sl do góry
-                    if (d.loc[entries_idx[i]:entries_idx[i+1], 'L'].min() > d.loc[open_idx, 'O'] * sl) and (d.loc[entries_idx[i]:entries_idx[i+1], 'H'].max() > d.loc[open_idx, 'O'] * (1+first_tp)):
-                        tpidx = d[d['H'] > d.loc[open_idx, 'O'] * first_tp].first_valid_index()
+                    elif slidx > tpidx:
 
                         result_df = result_df.append(pd.DataFrame(
                             {'Open Idx': [open_idx],
@@ -218,161 +195,73 @@ def open_Positions(df, sl=0.75, first_tp=0.5, first_tp_amount=0.5, trailing_sl=0
                             'Open price': [d.loc[open_idx, 'O']],
                             'Exit Index': [tpidx],
                             'Exit Datetime': [d.loc[tpidx, 'Datetime']],
-                            'Part of position': first_tp_amount,
-                            'Result': [1+first_tp*first_tp_amount]}), ignore_index=True)
-                        pos_part -= first_tp_amount
-                        k = (d.loc[entries_idx[i]:entries_idx[i+1], 'H'].max() - d.loc[open_idx, 'O'])/(d.loc[open_idx, 'O']*sl_static)
-                        sl = sl_static + (k + 1)*sl_static
+                            'Part of position': [pos_part-first_tp_amount],
+                            'Result': [1+first_tp]}), ignore_index=True)
+                        pos_part = pos_part - first_tp_amount
+
+                        k = (d.loc[open_idx:tpidx, 'H'].max() - d.loc[open_idx, 'O'])//(d.loc[open_idx, 'O']*sl_static)
+                        sl = sl_static + (k)*sl_static
+                        first_tp = sl_static + (k + 2)*sl_static
+                        old_open_idx = open_idx
+                        open_idx = tpidx + 1
+
+                        #print(f"2.  nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
+                        #print(result_df)
+
                         continue
+                else:
+                    print(f"\n\nOtwarta pozcycja: DateTime: {d.loc[open_idx, 'Datetime']}, {d.loc[open_idx, 'O']}")
+                    print("SL lub TP nie istnieją w pozostałych obserwacjach. Ostatnie pozycje nie zostałaby zamknięta")
+                    break
 
-                elif sl != sl_static:
+            elif pos_part < 1:
 
-                    # nie osiagnal sl, a sl != sl_static, to przypadek gdy mamy trailing sl i wyjebane w tp, zamykamy pozycje na plusie dla TSL
-                    if(d.loc[entries_idx[i]:entries_idx[i+1], 'L'].min() <= d.loc[open_idx, 'O'] * sl):
+                tp_warunek = (d.loc[open_idx+1:, 'H'] >= d.loc[open_idx, 'O'] * (1+first_tp)).to_numpy()
+                if sum(tp_warunek) == 0:
+                    tpidx = len(d.index)
+                else:
+                    tpidx = np.where(tp_warunek == True)[0][0] + open_idx
 
-                        slidx = d[d['L'] < d.loc[open_idx, 'O'] * sl].first_valid_index()
+                sl_warunek = (d.loc[open_idx+1:, 'L'] <= d.loc[open_idx, 'O'] * sl).to_numpy()
+                if sum(sl_warunek) == 0:
+                    slidx = len(d.index)
+                else:
+                    slidx = np.where(sl_warunek == True)[0][0] + open_idx
+
+                if slidx != len(d.index) or tpidx != len(d.index):
+                    if slidx < tpidx:
                         result_df = result_df.append(pd.DataFrame(
-                                {'Open Idx': [open_idx],
-                                 'Open Datetime': [d.loc[open_idx, 'Datetime']],
-                                 'Open price': [d.loc[open_idx, 'O']],
-                                 'Exit Index': [slidx],
-                                 'Exit Datetime': [d.loc[slidx, 'Datetime']],
-                                 'Part of position': [pos_part],
-                                 'Result': [sl*(1-first_tp_amount)]}), ignore_index=True)
-                        pos_part = 0
-                        open_idx = entries_idx[i+1]+1
+                            {'Open Idx': [old_open_idx],                          #tu trzeba dać stary index
+                            'Open Datetime': [d.loc[old_open_idx, 'Datetime']],
+                            'Open price': [d.loc[old_open_idx, 'O']],
+                            'Exit Index': [slidx],
+                            'Exit Datetime': [d.loc[slidx, 'Datetime']],
+                            'Part of position': [pos_part],
+                            'Result': [d.loc[slidx, 'O']/d.loc[old_open_idx, 'O']]}), ignore_index=True)
+                        pos_part = 1
                         sl = sl_static
+                        first_tp = tp_static
+                        open_idx = entries_idx[np.where(slidx < entries_idx)[0][0]]
+
+                        #print(f"3. nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
+                        #print(result_df)
                         continue
-                    else:
-                        k = (d.loc[entries_idx[i]:entries_idx[i+1], 'H'].max() - d.loc[open_idx, 'O'])/(d.loc[open_idx, 'O']*sl_static)
-                        sl = sl_static + (k + 1)*sl_static
-                        continue'''
 
-            entries_idx = d.index[d['Warunek1']].to_numpy()
-            entries_idx = np.append(entries_idx, len(d.index))
-            print(entries_idx)
-            open_idx = entries_idx[0]+1
-            pos_part = 1
-            sl_static = sl
-            tp_static = first_tp
-            old_open_idx = open_idx
+                    elif slidx > tpidx:
+                        k = (d.loc[open_idx:tpidx, 'H'].max() - d.loc[open_idx, 'O'])//(d.loc[open_idx, 'O']*sl_static)
+                        sl = sl_static + (k)*sl_static
+                        first_tp = sl_static + (k + 2)*sl_static
+                        open_idx = tpidx + 1
 
-            while open_idx < len(d.index) or not isinstance(open_idx, None):
-                # Otwieranie pozycji na początku, cała pozycja
-                if pos_part == 1:
-
-                    tp_warunek = (d.loc[open_idx+1:, 'H'] >= d.loc[open_idx, 'O'] * (1+first_tp)).to_numpy()
-                    if sum(tp_warunek) == 0:
-                        tpidx = len(d.index)
-                    else:
-                        tpidx = np.where(tp_warunek == True)[0][0] + open_idx
-
-                    sl_warunek = (d.loc[open_idx+1:, 'L'] <= d.loc[open_idx, 'O'] * sl).to_numpy()
-                    if sum(sl_warunek) == 0:
-                        slidx = len(d.index)
-                    else:
-                        slidx = np.where(sl_warunek == True)[0][0] + open_idx
-
-                    print(open_idx, tpidx, slidx)
-
-                    if slidx != len(d.index) or tpidx != len(d.index):
-                        if slidx < tpidx:
-
-                            result_df = result_df.append(pd.DataFrame(
-                                {'Open Idx': [open_idx],
-                                 'Open Datetime': [d.loc[open_idx, 'Datetime']],
-                                 'Open price': [d.loc[open_idx, 'O']],
-                                 'Exit Index': [slidx],
-                                 'Exit Datetime': [d.loc[slidx, 'Datetime']],
-                                 'Part of position': [pos_part],
-                                 'Result': [sl]}), ignore_index=True)
-                            pos_part = 1
-                            open_idx = entries_idx[np.where(slidx < entries_idx)[0][0]]
-                            sl = sl_static
-                            first_tp = tp_static
-
-                            print(f"1.  nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
-                            print(result_df)
-                            continue
-
-                        elif slidx > tpidx:
-
-                            result_df = result_df.append(pd.DataFrame(
-                                {'Open Idx': [open_idx],
-                                 'Open Datetime': [d.loc[open_idx, 'Datetime']],
-                                 'Open price': [d.loc[open_idx, 'O']],
-                                 'Exit Index': [tpidx],
-                                 'Exit Datetime': [d.loc[tpidx, 'Datetime']],
-                                 'Part of position': [pos_part-first_tp_amount],
-                                 'Result': [1+first_tp]}), ignore_index=True)
-                            pos_part = pos_part - first_tp_amount
-
-                            k = (d.loc[open_idx:tpidx, 'H'].max() - d.loc[open_idx, 'O'])/(d.loc[open_idx, 'O']*sl_static)
-                            sl = sl_static + (k + 1)*sl_static
-                            first_tp = sl_static + (k + 2)*sl_static
-                            old_open_idx = open_idx
-                            open_idx = tpidx + 1
-
-                            print(f"2.  nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
-                            print(result_df)
-
-                            continue
-                    else:
-                        print(f"\nOtwarta pozcycja: DateTime: {d.loc[open_idx, 'Datetime']}, {d.loc[open_idx, 'O']}")
-                        print("SL lub TP nie istnieją w pozostałych obserwacjach. Ostatnie pozycje nie zostałaby zamknięta")
-                        break
-
-                elif pos_part < 1:
-
-                    tp_warunek = (d.loc[open_idx+1:, 'H'] >= d.loc[open_idx, 'O'] * (1+first_tp)).to_numpy()
-                    if sum(tp_warunek) == 0:
-                        tpidx = len(d.index)
-                    else:
-                        tpidx = np.where(tp_warunek == True)[0][0] + open_idx
-
-                    sl_warunek = (d.loc[open_idx+1:, 'L'] <= d.loc[open_idx, 'O'] * sl).to_numpy()
-                    if sum(sl_warunek) == 0:
-                        slidx = len(d.index)
-                    else:
-                        slidx = np.where(sl_warunek == True)[0][0] + open_idx
-
-                    if slidx != len(d.index) or tpidx != len(d.index):
-                        if slidx < tpidx:
-                            result_df = result_df.append(pd.DataFrame(
-                                {'Open Idx': [old_open_idx],                          #tu trzeba dać stary index
-                                 'Open Datetime': [d.loc[old_open_idx, 'Datetime']],
-                                 'Open price': [d.loc[old_open_idx, 'O']],
-                                 'Exit Index': [slidx],
-                                 'Exit Datetime': [d.loc[slidx, 'Datetime']],
-                                 'Part of position': [pos_part],
-                                 'Result': [1 + sl]}), ignore_index=True)
-                            pos_part = 1
-                            sl = sl_static
-                            first_tp = tp_static
-                            open_idx = entries_idx[np.where(slidx < entries_idx)[0][0]]
-
-                            print(f"3. nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
-                            print(result_df)
-                            continue
-
-                        elif slidx > tpidx:
-                            k = (d.loc[open_idx:tpidx, 'H'].max() - d.loc[open_idx, 'O'])/(d.loc[open_idx, 'O']*sl_static)
-                            sl = sl_static + (k + 1)*sl_static
-                            first_tp = sl_static + (k + 2)*sl_static
-                            open_idx = tpidx + 1
-
-                            print(f"4.  nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
-                            continue
-                    else:
-                        print(f"\nOtwarta pozcycja: DateTime: {d.loc[open_idx, 'Datetime']}, {d.loc[open_idx, 'O']}")
-                        print("SL lub TP nie istnieją w pozostałych obserwacjach. Ostatnie pozycje nie zostałaby zamknięta")
-                        break
-
-
-
+                        #print(f"4.  nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
+                        continue
+                else:
+                    print(f"\n\nOtwarta pozcycja: DateTime: {d.loc[open_idx, 'Datetime']}, {d.loc[open_idx, 'O']}")
+                    print("SL lub TP nie istnieją w pozostałych obserwacjach. Ostatnie pozycje nie zostałaby zamknięta")
+                    break
 
         result[name] = result_df
-    print(result['EFT'])
+        print(name, "\n", result_df)
 
 def loadData(names:list):
     """
