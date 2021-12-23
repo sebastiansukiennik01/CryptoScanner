@@ -142,14 +142,14 @@ def open_Positions(df, sl=0.75, first_tp=0.5, first_tp_amount=0.5, trailing_sl=0
         entries_idx = d.index[d['Warunek1']].to_numpy()
         entries_idx = np.append(entries_idx, len(d.index))
         open_idx = entries_idx[0]+1
+        print(f"\n\n----- {name} -------")
         print(entries_idx)
-        print(open_idx)
         pos_part = 1
         sl_static = sl
         tp_static = first_tp
         old_open_idx = open_idx
 
-        while open_idx < len(d.index) or open_idx != None:
+        while open_idx < len(d.index) and open_idx != None:
             # Otwieranie pozycji na początku, cała pozycja
             if pos_part == 1:
 
@@ -165,10 +165,10 @@ def open_Positions(df, sl=0.75, first_tp=0.5, first_tp_amount=0.5, trailing_sl=0
                 else:
                     slidx = np.where(sl_warunek == True)[0][0] + open_idx
 
-                #print(open_idx, tpidx, slidx)
+                print(open_idx, tpidx, slidx)
 
                 if slidx != len(d.index) or tpidx != len(d.index):
-                    if slidx < tpidx:
+                    if slidx <= tpidx:
 
                         result_df = result_df.append(pd.DataFrame(
                             {'Open Idx': [open_idx],
