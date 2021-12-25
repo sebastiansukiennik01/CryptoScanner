@@ -35,10 +35,10 @@ def calc_additional_columns(dfs):
         d["AvgTrAm"] = d["tradeAmount"] / d["trades"]       # Średnia wielkośc tradu w danej świeczce (np. 1000$/5 tradów da średnią 200$)
         d["MA3_TrAm"] = d["AvgTrAm"].rolling(3).mean()         # Średnia ruchoma (3 okresowa) z ostatnich średnich wielkości tradeów
         d["MMin2_O_diff"] = d["O_diff"].rolling(2).min()        # Najmniejsza wartość z dwóch ostatnich wartości 'O_diff'
-        d["CandleStrength"] = (d['C']-d['O'])/(d['H']-d['L'])   # Siła świeczki przyjmuje wartoścci od (-1,1) gdzie 1 to cała zielona świeczka, -1 to cała czerwona,
+        #d["CandleStrength"] = (d['C']-d['O'])/(d['H']-d['L'])   # Siła świeczki przyjmuje wartoścci od (-1,1) gdzie 1 to cała zielona świeczka, -1 to cała czerwona,
                                                                 # wynik w okolicy zera oznacza że cena zamknięcia i otwarcią były podobne
         d['Warunek1'] = (d['tradeAmount_pctchange'] > 2) & (d['trades'] > 5) & (d['O_diff'] > 0) # Warunek 1 testowanej strategi, wskazuje miejsca entry
-        #print(d.head())
+        print(d.head())
 
     return dfs
 
@@ -133,7 +133,7 @@ def plot_PriceVsValue(df):
         plt.show()
 
 
-def open_Positions(df, sl=0.75, first_tp=1.5, first_tp_amount=0.5, trailing_sl=0.5):
+def open_Positions(df, sl=0.75, first_tp=1.5, first_tp_amount=0.5):
 
     result = {}
     sl_static = sl
@@ -167,7 +167,7 @@ def open_Positions(df, sl=0.75, first_tp=1.5, first_tp_amount=0.5, trailing_sl=0
                 #print(open_idx, tpidx, slidx)
 
                 if slidx != len(d.index) or tpidx != len(d.index):
-                    if slidx < tpidx:
+                    if slidx <= tpidx:
 
                         result_df = result_df.append(pd.DataFrame(
                             {'Open Idx': [open_idx],
@@ -186,7 +186,7 @@ def open_Positions(df, sl=0.75, first_tp=1.5, first_tp_amount=0.5, trailing_sl=0
                         #print(result_df)
                         continue
 
-                    elif slidx >= tpidx:
+                    elif slidx > tpidx:
 
                         result_df = result_df.append(pd.DataFrame(
                             {'Open Idx': [open_idx],
@@ -336,11 +336,10 @@ def tradeAmoutn_X_newHigh(data):
         axs[0].legend(["O", "C"])
         #plt.show()
 
-def calc_stats():
+def results_by_token():
     file_names = glob.glob("Data/Results/*.csv")
     for fn in file_names:
         file_names[file_names.index(fn)] = fn.split("/")[2][:-4]
-
     stats_df = pd.DataFrame()
 
     for name in file_names:
@@ -348,11 +347,75 @@ def calc_stats():
         if not d.empty:
             d['Pct return'] = d['Result'] - 1
             d.loc[d['Pct return'] != -0.25, 'Pct return'] = d['Pct return'] / 2
-            stats_df = stats_df.append({"TOKEN": name, "Summary return": d["Pct return"].sum()}, ignore_index=True)
-    stats_df.sort_values(by=["Summary return"]).to_csv("Result.csv")
-    print("\n\nWartosci posortowane:\n ", stats_df.sort_values(by=["Summary return"]).describe())
-    print("\n\nWartosci posortowane bez n najwiekszych:\n ", stats_df.sort_values(by=["Summary return"]).iloc[:-3, :])
-    print("\n\nSuma/Srednia zwrotów bez n najwiekszych\n", stats_df.sort_values(by=["Summary return"]).iloc[:-3, :].sum())
+            stats_df = stats_df.append({
+                "TOKEN": name,
+                "Sum": d["Pct return"].sum(),
+                "Average": d["Pct return"].mean(),
+                "Min": d["Pct return"].min(),
+                "Max": d["Pct return"].max(),
+                "Count": d["Pct return"].count()
+                },
+                ignore_index=True)
+    print(stats_df)
+    print(stats_df.describe())
+    #stats_df.to_csv("Data/CombinedResult/ResultsByToken.csv")
+
+def results_by_day():
+    file_names = glob.glob("Data/Results/*.csv")
+    for fn in file_names:
+        file_names[file_names.index(fn)] = fn.split("/")[2][:-4]
+    stats_df = pd.DataFrame()
+
+    for name in file_names:
+        d = pd.read_csv(f"Data/Results/{name}.csv")
+        if not d.empty:
+            d['Pct return'] = d['Result'] - 1
+            d.loc[d['Pct return'] != -0.25, 'Pct return'] = d['Pct return'] / 2
+            stats_df = stats_df.append(d)
+
+    stats_df['Open Datetime'] = pd.to_datetime(stats_df['Open Datetime'])
+    stats_df = stats_df.sort_values(by=['Open Datetime'])
+
+    result = pd.DataFrame()
+    stats_df = stats_df[['Open Datetime', 'Pct return']]
+    result['Sum'] = stats_df.resample('D', on='Open Datetime').sum()
+    result['Avg'] = stats_df.resample('D', on='Open Datetime').mean()
+    result['Min'] = stats_df.resample('D', on='Open Datetime').min().drop(columns=['Open Datetime'])
+    result['Max'] = stats_df.resample('D', on='Open Datetime').max().drop(columns=['Open Datetime'])
+    result['Count'] = stats_df.resample('D', on='Open Datetime').count().drop(columns=['Open Datetime'])
+
+    print(result)
+    print(result.describe())
+    #result.to_csv("Data/CombinedResult/ResultsByDay.csv")
+
+def results_by_day95():
+    file_names = glob.glob("Data/Results/*.csv")
+    for fn in file_names:
+        file_names[file_names.index(fn)] = fn.split("/")[2][:-4]
+    all_trades_df = pd.DataFrame()
+
+    for name in file_names:
+        d = pd.read_csv(f"Data/Results/{name}.csv")
+        if not d.empty:
+            d['Pct return'] = d['Result'] - 1
+            d.loc[d['Pct return'] != -0.25, 'Pct return'] = d['Pct return'] / 2
+            all_trades_df = all_trades_df.append(d)
+
+    all_trades_df = all_trades_df.sort_values(by=['Pct return'])
+    all_trades_df = all_trades_df.iloc[int(all_trades_df.shape[0]*0.022) : int(all_trades_df.shape[0]*0.978), :]
+    all_trades_df['Open Datetime'] = pd.to_datetime(all_trades_df['Open Datetime'])
+
+    result = pd.DataFrame()
+    all_trades_df = all_trades_df[['Open Datetime', 'Pct return']]
+    result['Sum'] = all_trades_df.resample('D', on='Open Datetime').sum()
+    result['Avg'] = all_trades_df.resample('D', on='Open Datetime').mean()
+    result['Min'] = all_trades_df.resample('D', on='Open Datetime').min().drop(columns=['Open Datetime'])
+    result['Max'] = all_trades_df.resample('D', on='Open Datetime').max().drop(columns=['Open Datetime'])
+    result['Count'] = all_trades_df.resample('D', on='Open Datetime').count().drop(columns=['Open Datetime'])
+
+    print(result)
+    print(result.describe())
+    #result.to_csv("Data/CombinedResult/ResultsByDay95.csv")
 
 if __name__ == '__main__':
 
@@ -363,9 +426,12 @@ if __name__ == '__main__':
     data = calc_additional_columns(data)
     data = KernalDensity(data)
     #open_Positions(data)
-    #plot_PriceVsValue(data)
 
-    calc_stats()
+    results_by_token()
+    results_by_day()
+    results_by_day95()
+
+    plot_PriceVsValue(data)
 
 
 
