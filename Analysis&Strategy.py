@@ -48,7 +48,6 @@ def KernalDensity(df):
         if d.empty:
             print("puste")
             continue
-        print(name)
         idx = d.index
         a = idx[d['Warunek1'] == True]
         if sum(d['Warunek1']) > 0:
@@ -107,7 +106,7 @@ def plot_PriceVsValue(df):
         j = 0
 
         for id in idx:
-            axs[i][j].plot(df[id]['Datetime'], df[id]['O'], color='blue')
+            axs[i][j].plot(df[id]['Datetime'], df[id]['C'], color='blue')
             axs[i][j].set_title(id)
             axs[i][j].grid(alpha=0.5)
 
@@ -134,26 +133,27 @@ def plot_PriceVsValue(df):
         plt.show()
 
 
-def open_Positions(df, sl=0.75, first_tp=0.5, first_tp_amount=0.5, trailing_sl=0.5):
+def open_Positions(df, sl=0.75, first_tp=1.5, first_tp_amount=0.5, trailing_sl=0.5):
 
     result = {}
+    sl_static = sl
+    tp_static = first_tp
+
     for name, d in df.items():
         result_df = pd.DataFrame()
         entries_idx = d.index[d['Warunek1']].to_numpy()
         entries_idx = np.append(entries_idx, len(d.index))
         open_idx = entries_idx[0]+1
-        print(f"\n\n----- {name} -------")
-        print(entries_idx)
-        pos_part = 1
-        sl_static = sl
-        tp_static = first_tp
         old_open_idx = open_idx
+        pos_part = 1
+
+        print(f"\n\n----- {name} -------")
 
         while open_idx < len(d.index) and open_idx != None:
             # Otwieranie pozycji na początku, cała pozycja
             if pos_part == 1:
 
-                tp_warunek = (d.loc[open_idx+1:, 'H'] >= d.loc[open_idx, 'O'] * (1+first_tp)).to_numpy()
+                tp_warunek = (d.loc[open_idx+1:, 'H'] >= (d.loc[open_idx, 'O'] * (first_tp))).to_numpy()
                 if sum(tp_warunek) == 0:
                     tpidx = len(d.index)
                 else:
@@ -164,11 +164,10 @@ def open_Positions(df, sl=0.75, first_tp=0.5, first_tp_amount=0.5, trailing_sl=0
                     slidx = len(d.index)
                 else:
                     slidx = np.where(sl_warunek == True)[0][0] + open_idx
-
-                print(open_idx, tpidx, slidx)
+                #print(open_idx, tpidx, slidx)
 
                 if slidx != len(d.index) or tpidx != len(d.index):
-                    if slidx <= tpidx:
+                    if slidx < tpidx:
 
                         result_df = result_df.append(pd.DataFrame(
                             {'Open Idx': [open_idx],
@@ -183,11 +182,11 @@ def open_Positions(df, sl=0.75, first_tp=0.5, first_tp_amount=0.5, trailing_sl=0
                         sl = sl_static
                         first_tp = tp_static
 
-                        #print(f"1.  nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
+                        #print(f"1.  nowy indeks startowy {open_idx}\n  pos_part: {pos_part}")
                         #print(result_df)
                         continue
 
-                    elif slidx > tpidx:
+                    elif slidx >= tpidx:
 
                         result_df = result_df.append(pd.DataFrame(
                             {'Open Idx': [open_idx],
@@ -196,40 +195,42 @@ def open_Positions(df, sl=0.75, first_tp=0.5, first_tp_amount=0.5, trailing_sl=0
                             'Exit Index': [tpidx],
                             'Exit Datetime': [d.loc[tpidx, 'Datetime']],
                             'Part of position': [pos_part-first_tp_amount],
-                            'Result': [1+first_tp]}), ignore_index=True)
+                            'Result': [tp_static]}), ignore_index=True)
                         pos_part = pos_part - first_tp_amount
 
-                        k = (d.loc[open_idx:tpidx, 'H'].max() - d.loc[open_idx, 'O'])//(d.loc[open_idx, 'O']*sl_static)
-                        sl = sl_static + (k)*sl_static
-                        first_tp = sl_static + (k + 2)*sl_static
+                        k = ((d.loc[open_idx:tpidx, 'H'].max() / d.loc[open_idx, 'O']) - 1)//(1 - sl_static)
+                        sl = sl_static + k*(1 - sl_static)
+                        first_tp = sl_static + (k + 3)*(1 - sl_static)
                         old_open_idx = open_idx
                         open_idx = tpidx + 1
 
-                        #print(f"2.  nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
+                        #print(f"SL: {sl}, TP: {first_tp}")
+                        #print(f"2.  nowy indeks startowy {open_idx}\n pos_part: {pos_part}")
                         #print(result_df)
-
                         continue
+
                 else:
                     print(f"\n\nOtwarta pozcycja: DateTime: {d.loc[open_idx, 'Datetime']}, {d.loc[open_idx, 'O']}")
                     print("SL lub TP nie istnieją w pozostałych obserwacjach. Ostatnie pozycje nie zostałaby zamknięta")
                     break
-
             elif pos_part < 1:
 
-                tp_warunek = (d.loc[open_idx+1:, 'H'] >= d.loc[open_idx, 'O'] * (1+first_tp)).to_numpy()
+                tp_warunek = (d.loc[open_idx+1:, 'H'] > d.loc[old_open_idx, 'O'] * (first_tp)).to_numpy()
                 if sum(tp_warunek) == 0:
                     tpidx = len(d.index)
                 else:
                     tpidx = np.where(tp_warunek == True)[0][0] + open_idx
 
-                sl_warunek = (d.loc[open_idx+1:, 'L'] <= d.loc[open_idx, 'O'] * sl).to_numpy()
+                sl_warunek = (d.loc[open_idx+1:, 'L'] < d.loc[old_open_idx, 'O'] * sl).to_numpy()
                 if sum(sl_warunek) == 0:
                     slidx = len(d.index)
                 else:
                     slidx = np.where(sl_warunek == True)[0][0] + open_idx
 
+                #print(open_idx, tpidx, slidx)
+
                 if slidx != len(d.index) or tpidx != len(d.index):
-                    if slidx < tpidx:
+                    if slidx <= tpidx:
                         result_df = result_df.append(pd.DataFrame(
                             {'Open Idx': [old_open_idx],                          #tu trzeba dać stary index
                             'Open Datetime': [d.loc[old_open_idx, 'Datetime']],
@@ -243,24 +244,26 @@ def open_Positions(df, sl=0.75, first_tp=0.5, first_tp_amount=0.5, trailing_sl=0
                         first_tp = tp_static
                         open_idx = entries_idx[np.where(slidx < entries_idx)[0][0]]
 
-                        #print(f"3. nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
+                        #print(f"3. nowy indeks startowy {open_idx}\n pos_part: {pos_part}")
                         #print(result_df)
-                        continue
+
 
                     elif slidx > tpidx:
-                        k = (d.loc[open_idx:tpidx, 'H'].max() - d.loc[open_idx, 'O'])//(d.loc[open_idx, 'O']*sl_static)
-                        sl = sl_static + (k)*sl_static
-                        first_tp = sl_static + (k + 2)*sl_static
+                        k = ((d.loc[tpidx, 'H'] / d.loc[old_open_idx, 'O']) - 1)//(1 - sl_static)
+                        sl = sl_static + k*(1 - sl_static)
+                        first_tp = sl_static + (k + 2)*(1 - sl_static)
                         open_idx = tpidx + 1
 
-                        #print(f"4.  nowy indeks startowy {open_idx}\n tpidx: {tpidx} \n slidx: {slidx} \n pos_part: {pos_part}")
-                        continue
+                        #print(f"SL: {sl}, TP: {first_tp}")
+                        #print(f"4.  nowy indeks startowy {open_idx}\n pos_part: {pos_part}")
+
                 else:
                     print(f"\n\nOtwarta pozcycja: DateTime: {d.loc[open_idx, 'Datetime']}, {d.loc[open_idx, 'O']}")
                     print("SL lub TP nie istnieją w pozostałych obserwacjach. Ostatnie pozycje nie zostałaby zamknięta")
                     break
 
         result[name] = result_df
+        #result_df.to_csv(f"/Users/sebastiansukiennik/Desktop/PycharmProjects/PierwszyMilion/Data/Results/{name}.csv")
         print(name, "\n", result_df)
 
 def loadData(names:list):
@@ -333,6 +336,23 @@ def tradeAmoutn_X_newHigh(data):
         axs[0].legend(["O", "C"])
         #plt.show()
 
+def calc_stats():
+    file_names = glob.glob("Data/Results/*.csv")
+    for fn in file_names:
+        file_names[file_names.index(fn)] = fn.split("/")[2][:-4]
+
+    stats_df = pd.DataFrame()
+
+    for name in file_names:
+        d = pd.read_csv(f"Data/Results/{name}.csv")
+        if not d.empty:
+            d['Pct return'] = d['Result'] - 1
+            d.loc[d['Pct return'] != -0.25, 'Pct return'] = d['Pct return'] / 2
+            stats_df = stats_df.append({"TOKEN": name, "Summary return": d["Pct return"].sum()}, ignore_index=True)
+    stats_df.sort_values(by=["Summary return"]).to_csv("Result.csv")
+    print("\n\nWartosci posortowane:\n ", stats_df.sort_values(by=["Summary return"]).describe())
+    print("\n\nWartosci posortowane bez n najwiekszych:\n ", stats_df.sort_values(by=["Summary return"]).iloc[:-3, :])
+    print("\n\nSuma/Srednia zwrotów bez n najwiekszych\n", stats_df.sort_values(by=["Summary return"]).iloc[:-3, :].sum())
 
 if __name__ == '__main__':
 
@@ -342,8 +362,11 @@ if __name__ == '__main__':
     data = loadData(file_names)
     data = calc_additional_columns(data)
     data = KernalDensity(data)
-    open_Positions(data)
-    plot_PriceVsValue(data)
+    #open_Positions(data)
+    #plot_PriceVsValue(data)
+
+    calc_stats()
+
 
 
 
