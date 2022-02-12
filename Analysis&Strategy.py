@@ -38,7 +38,8 @@ def calc_additional_columns(dfs):
         #d["CandleStrength"] = (d['C']-d['O'])/(d['H']-d['L'])   # Siła świeczki przyjmuje wartoścci od (-1,1) gdzie 1 to cała zielona świeczka, -1 to cała czerwona,
                                                                 # wynik w okolicy zera oznacza że cena zamknięcia i otwarcią były podobne
         d['Warunek1'] = (d['tradeAmount_pctchange'] > 2) & (d['trades'] > 5) & (d['O_diff'] > 0) # Warunek 1 testowanej strategi, wskazuje miejsca entry
-        #print(d.head())
+        if name == "EFT":
+            print(d.head(20))
 
     return dfs
 
@@ -106,7 +107,7 @@ def plot_PriceVsValue(df):
         j = 0
 
         for id in idx:
-            axs[i][j].plot(df[id]['Datetime'], df[id]['C'], color='blue')
+            axs[i][j].plot(df[id]['Datetime'], df[id]['O'], color='blue')
             axs[i][j].set_title(id)
             axs[i][j].grid(alpha=0.5)
 
@@ -133,7 +134,7 @@ def plot_PriceVsValue(df):
         plt.show()
 
 
-def open_Positions(df, sl=0.75, first_tp=1.5, first_tp_amount=0.5):
+def open_Positions(df, sl=0.75, first_tp=1.5, first_tp_amount=0.5, delay=1):
 
     result = {}
     sl_static = sl
@@ -143,11 +144,11 @@ def open_Positions(df, sl=0.75, first_tp=1.5, first_tp_amount=0.5):
         result_df = pd.DataFrame()
         entries_idx = d.index[d['Warunek1']].to_numpy()
         entries_idx = np.append(entries_idx, len(d.index))
-        open_idx = entries_idx[0]+1
+        open_idx = entries_idx[0]+delay
         old_open_idx = open_idx
         pos_part = 1
 
-        print(f"\n\n----- {name} -------")
+        #print(f"\n\n----- {name} -------")
 
         while open_idx < len(d.index) and open_idx != None:
             # Otwieranie pozycji na początku, cała pozycja
@@ -210,8 +211,8 @@ def open_Positions(df, sl=0.75, first_tp=1.5, first_tp_amount=0.5):
                         continue
 
                 else:
-                    print(f"\n\nOtwarta pozcycja: DateTime: {d.loc[open_idx, 'Datetime']}, {d.loc[open_idx, 'O']}")
-                    print("SL lub TP nie istnieją w pozostałych obserwacjach. Ostatnie pozycje nie zostałaby zamknięta")
+                    #print(f"\n\nOtwarta pozcycja: DateTime: {d.loc[open_idx, 'Datetime']}, {d.loc[open_idx, 'O']}")
+                    #print("SL lub TP nie istnieją w pozostałych obserwacjach. Ostatnie pozycje nie zostałaby zamknięta")
                     break
             elif pos_part < 1:
 
@@ -258,13 +259,13 @@ def open_Positions(df, sl=0.75, first_tp=1.5, first_tp_amount=0.5):
                         #print(f"4.  nowy indeks startowy {open_idx}\n pos_part: {pos_part}")
 
                 else:
-                    print(f"\n\nOtwarta pozcycja: DateTime: {d.loc[open_idx, 'Datetime']}, {d.loc[open_idx, 'O']}")
-                    print("SL lub TP nie istnieją w pozostałych obserwacjach. Ostatnie pozycje nie zostałaby zamknięta")
+                    #print(f"\n\nOtwarta pozcycja: DateTime: {d.loc[open_idx, 'Datetime']}, {d.loc[open_idx, 'O']}")
+                    #print("SL lub TP nie istnieją w pozostałych obserwacjach. Ostatnie pozycje nie zostałaby zamknięta")
                     break
 
         result[name] = result_df
-        #result_df.to_csv(f"/Users/sebastiansukiennik/Desktop/PycharmProjects/PierwszyMilion/Data/Results/{name}.csv")
-        print(name, "\n", result_df)
+        result_df.to_csv(f"/Users/sebastiansukiennik/Desktop/PycharmProjects/PierwszyMilion/Data/Results/{name}.csv")
+        print(f"\n{name}\n", result_df)
 
 def loadData(names:list):
     """
@@ -336,7 +337,7 @@ def tradeAmoutn_X_newHigh(data):
         axs[0].legend(["O", "C"])
         #plt.show()
 
-def results_by_token():
+def results_by_token(sl=0.75):
     file_names = glob.glob("Data/Results/*.csv")
     for fn in file_names:
         file_names[file_names.index(fn)] = fn.split("/")[2][:-4]
@@ -346,7 +347,7 @@ def results_by_token():
         d = pd.read_csv(f"Data/Results/{name}.csv")
         if not d.empty:
             d['Pct return'] = d['Result'] - 1
-            d.loc[d['Pct return'] != -0.25, 'Pct return'] = d['Pct return'] / 2
+            d.loc[d['Pct return'] != (sl-1), 'Pct return'] = d['Pct return'] / 2
             stats_df = stats_df.append({
                 "TOKEN": name,
                 "Sum": d["Pct return"].sum(),
@@ -358,9 +359,9 @@ def results_by_token():
                 ignore_index=True)
     print(stats_df)
     print(stats_df.describe())
-    #stats_df.to_csv("Data/CombinedResult/ResultsByToken.csv")
+    stats_df.to_csv("Data/CombinedResult/ResultsByToken.csv")
 
-def results_by_day():
+def results_by_day(sl=0.75):
     file_names = glob.glob("Data/Results/*.csv")
     for fn in file_names:
         file_names[file_names.index(fn)] = fn.split("/")[2][:-4]
@@ -370,7 +371,7 @@ def results_by_day():
         d = pd.read_csv(f"Data/Results/{name}.csv")
         if not d.empty:
             d['Pct return'] = d['Result'] - 1
-            d.loc[d['Pct return'] != -0.25, 'Pct return'] = d['Pct return'] / 2
+            d.loc[d['Pct return'] != (sl-1), 'Pct return'] = d['Pct return'] / 2
             stats_df = stats_df.append(d)
 
     stats_df['Open Datetime'] = pd.to_datetime(stats_df['Open Datetime'])
@@ -386,9 +387,9 @@ def results_by_day():
 
     print(result)
     print(result.describe())
-    #result.to_csv("Data/CombinedResult/ResultsByDay.csv")
+    result.to_csv("Data/CombinedResult/ResultsByDay.csv")
 
-def results_by_day95():
+def results_by_day95(sl=0.75):
     file_names = glob.glob("Data/Results/*.csv")
     for fn in file_names:
         file_names[file_names.index(fn)] = fn.split("/")[2][:-4]
@@ -398,12 +399,14 @@ def results_by_day95():
         d = pd.read_csv(f"Data/Results/{name}.csv")
         if not d.empty:
             d['Pct return'] = d['Result'] - 1
-            d.loc[d['Pct return'] != -0.25, 'Pct return'] = d['Pct return'] / 2
+            d.loc[d['Pct return'] != (sl-1), 'Pct return'] = d['Pct return'] / 2
             all_trades_df = all_trades_df.append(d)
 
     all_trades_df = all_trades_df.sort_values(by=['Pct return'])
     all_trades_df = all_trades_df.iloc[int(all_trades_df.shape[0]*0.022) : int(all_trades_df.shape[0]*0.978), :]
     all_trades_df['Open Datetime'] = pd.to_datetime(all_trades_df['Open Datetime'])
+    all_trades_df['Exit Datetime'] = pd.to_datetime(all_trades_df['Exit Datetime'])
+    all_trades_df['Trade Duration'] = all_trades_df['Exit Datetime'] - all_trades_df['Open Datetime']
 
     result = pd.DataFrame()
     all_trades_df = all_trades_df[['Open Datetime', 'Pct return']]
@@ -413,28 +416,34 @@ def results_by_day95():
     result['Max'] = all_trades_df.resample('D', on='Open Datetime').max().drop(columns=['Open Datetime'])
     result['Count'] = all_trades_df.resample('D', on='Open Datetime').count().drop(columns=['Open Datetime'])
 
-    print(result)
-    print(result.describe())
-    #result.to_csv("Data/CombinedResult/ResultsByDay95.csv")
+    #print(result)
+    #print(result.describe())
+    result.to_csv("Data/CombinedResult/ResultsByDay95.csv")
+    return result.describe()
 
 if __name__ == '__main__':
 
     file_names = glob.glob("Data/CSV/*.csv")
+
     for fn in file_names:
         file_names[file_names.index(fn)] = fn.split("/")[2][:-4]
     data = loadData(file_names)
     data = calc_additional_columns(data)
     data = KernalDensity(data)
-    #open_Positions(data)
 
-    results_by_token()
+    open_Positions(data)
+
     results_by_day()
+    results_by_token()
     results_by_day95()
 
     plot_PriceVsValue(data)
 
+    '''for i in np.arange(1, 11):
+        print(f"\nSprawdzam dla delay={round(i)}")
+        open_Positions(data, delay=i)
+        df = df.append(results_by_day95())
+        df = df.append(pd.Series({"Unnamed: 0": f"{i} MIN DELAY"}), ignore_index=True)
 
-
-
-
-
+    df.to_csv("/Users/sebastiansukiennik/Desktop/PycharmProjects/PierwszyMilion/Data/CombinedResult/Compared_delay.csv")
+'''

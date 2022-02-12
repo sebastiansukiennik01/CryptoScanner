@@ -76,9 +76,10 @@ class BitQuery:
         :param tokens_df:
         :return:
         """
+        print(f"tutaj tokeny \n{tokens_df}")
         symb_add = [[], []]
         for index, row in tokens_df.iterrows():
-            if row["Blockchain"] == "Binance Coin":
+            if row["Blockchain"] == "BNB":
                 print(index, row)
                 self.__init__(baseAddress=row['Address'])
                 result = self.run_query()
@@ -87,6 +88,7 @@ class BitQuery:
                 symb_add[0].append(row['Symbol'])
                 symb_add[1].append(row['Address'])
 
+        print(symb_add)
         self.add_to_tokens_list(symb_add)
 
     def add_to_tokens_list(self, symb_add):
