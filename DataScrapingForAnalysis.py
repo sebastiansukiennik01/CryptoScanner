@@ -76,9 +76,10 @@ class BitQuery:
         :param tokens_df:
         :return:
         """
+        print(f"tutaj tokeny \n{tokens_df}")
         symb_add = [[], []]
         for index, row in tokens_df.iterrows():
-            if row["Blockchain"] == "Binance Coin":
+            if row["Blockchain"] == "BNB":
                 print(index, row)
                 self.__init__(baseAddress=row['Address'])
                 result = self.run_query()
@@ -87,6 +88,7 @@ class BitQuery:
                 symb_add[0].append(row['Symbol'])
                 symb_add[1].append(row['Address'])
 
+        print(symb_add)
         self.add_to_tokens_list(symb_add)
 
     def add_to_tokens_list(self, symb_add):
@@ -136,8 +138,13 @@ class Processing:
         for name in names:
             coin_data = coins_dict[name]['data']['ethereum']['dexTrades']
             temp = []
-            for i in coin_data:
-                temp.append(self.flatten(i))
+
+            try:
+                for i in coin_data:
+                    temp.append(self.flatten(i))
+            except:
+                print(type(coin_data))
+                print(name)
 
             df = pd.DataFrame(temp)
             coins_df_dict[name] = df
@@ -223,14 +230,19 @@ class TokenInfo:
         :return: Pandas DataFrame
         """
 
+
         all_adresses = []
         for href in df_cmc_new["CMCHref"].values:
             cmc_token_req = requests.get("https://coinmarketcap.com" + href)
             if cmc_token_req.status_code == 200:
                 result = cmc_token_req.text
                 temp = result.rsplit("sc-10up5z1-5 jlEjUY", 1)
-                address = temp[1].split('href="')[1].split('" class="cmc-link"')[0].split("/")[-1]
-                all_adresses.append(address)
+                try:
+                    address = temp[1].split('href="')[1].split('" class="cmc-link"')[0].split("/")[-1]
+                    all_adresses.append(address)
+                except:
+                    all_adresses.append("bledny")
+                    print("bledny adres")
         df_cmc_new["Address"] = all_adresses
         return df_cmc_new
 
