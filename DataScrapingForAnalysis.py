@@ -76,6 +76,8 @@ class BitQuery:
         :param tokens_df:
         :return:
         """
+
+        #Pobieranie danych historycznych dla OSTATNICH 30 tokenów z CMC
         print(f"tutaj tokeny \n{tokens_df}")
         symb_add = [[], []]
         for index, row in tokens_df.iterrows():
@@ -90,6 +92,20 @@ class BitQuery:
 
         print(symb_add)
         self.add_to_tokens_list(symb_add)
+
+
+        #Pobieranie aktualnych danych historycznych dla WSZYSTKICH tokenów zapisanych w pliku Tokens.csv
+        '''
+        tokens = pd.read_csv("/Users/sebastiansukiennik/Desktop/PycharmProjects/PierwszyMilion/Data/Tokens.csv")
+
+        for index, row in tokens.iterrows():
+            print(index, row)
+            self.__init__(baseAddress=row['Address'])
+            result = self.run_query()
+            self.save_query(result, row['Symbol'])
+            print(f'{row["Symbol"]} with adress: {row["Address"]} has been successfully saved into text file.')
+        '''
+
 
     def add_to_tokens_list(self, symb_add):
         """
@@ -229,7 +245,6 @@ class TokenInfo:
         :param df_cmc_new: Pandas DataFrame containing info about token, most important is column "Href" with CoinMarketCap hrefs to each token
         :return: Pandas DataFrame
         """
-
 
         all_adresses = []
         for href in df_cmc_new["CMCHref"].values:
