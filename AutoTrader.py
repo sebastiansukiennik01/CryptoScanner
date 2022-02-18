@@ -154,12 +154,12 @@ class BscScan:
             return False
 
 
-
 addrs = BitTimes.get_token_addresses()
 #tran = BscScan.get_tokens_transactions(addr.keys())
 #supp = BscScan.get_tokens_supply(addr.keys())
 #hold = BitTimes.get_token_holders(addr)
 #BscScan.is_contract(addrs[0])
+
 
 
 
