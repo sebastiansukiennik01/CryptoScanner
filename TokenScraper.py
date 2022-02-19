@@ -1,4 +1,5 @@
 import json
+import time
 
 import pandas as pd
 import requests
@@ -93,6 +94,12 @@ class BscScan:
                     d['topics_0'] = d['topics'][0]
                 del d['topics']
                 df = df.append(d, ignore_index=True)
+            df = df.drop(columns=['data', 'blockNumber', 'gasPrice', 'gasUsed'])
+            df['timeStamp'] = df['timeStamp'].apply(int, base=16)
+            df['Date'] = pd.to_datetime(df['timeStamp'], unit='s')
+            df['Date'] = df['Date'] + pd.DateOffset(hours=1)
+            df.drop(columns=['timeStamp'], inplace=True)
+
             transactions[a] = df
 
         return transactions
@@ -159,38 +166,91 @@ class BscScan:
             return False
 
 
-class Tokens:
+class Filter:
 
     @staticmethod
     def sift_by_holders(holders: dict):
 
-        result_holders = {}
+        print("################\nFiltrowanie pod względem holderów")
+        result_holders = holders.copy()
 
         for a, h in holders.items():
-            print("\n\n", a)
+            print(a)
+
+            #sprawdzam czy jest jakikolwiek wiekszy do 30% a potem czy jest contractem/PancakeSwapem/Nullem
+            if (h['percentage'] > 0.3).any():
+                h_gt_30 = h.loc[h['percentage'] > 0.3, :]
+                for row in h_gt_30.iterrows():
+                    if not(BscScan.is_contract(row[1]['address'])) and not(BscScan.is_pancakepair(row[1]['address'])) and row[1]['address'] != "0x000000000000000000000000000000000000dead":
+                        print(f"Usuwam adres {a} bo jeden z dużych holderów nie jest contractem/PancakeSwapem/Nullem")
+                        del result_holders[a]
+                        break
+                if not(a in result_holders.keys()):
+                    continue
 
             #sprawdzam czy jest więcej niż 10 holderów
-            if h.shape[0] > 10 and (h['percentage'] < 0.8).all():
-                result_holders[a] = h
-            else:
-                print(f"################ {a} nie spełnia warunków")
+            if h.shape[0] < 10:
+                print(f"Usuwam adres {a} bo jest mniej niz 10 holderów")
+                del result_holders[a]
+                continue
+
+            #sprawdzam czy jakikolwiek holder ma powyżej 90% udziałów
+            if (h['percentage'] > 0.9).any():
+                print(f"Usuwam adres {a} bo jeden adres ma więcej niż 90% wszystkich tokenów")
+                del result_holders[a]
+                continue
 
         return result_holders
 
+    @staticmethod
+    def sift_by_transactions(transactions: dict):
+
+        print("################\nFiltrowanie pod względem transakcji")
+        result_transactions = transactions.copy()
+        for a, t in transactions.items():
+
+            print(a)
+            #wylicza średnie natężęnie tradeów w ostatnich 10 minutach
+            last_10_min = t.loc[t['Date'] > t.loc[t.shape[0]-1, 'Date']-pd.DateOffset(minutes=10), :]
+            last_10_min.loc[:,'TimeDelta'] = last_10_min['Date'].shift(-1).sub(last_10_min['Date'])
+            if(last_10_min['TimeDelta'].mean() > pd.Timedelta(minutes=1)):
+                print(f"Usuwam token {a}, bo srednia częstotliwość transakcji w ostatnich 10 minutach jest mniejsza niż 1 na minutę")
+                del result_transactions[a]
+                continue
+
+        return result_transactions
+
+class Main:
+
+    @staticmethod
+    def run():
+        #Pobiera adresy, sprawdza dla nich holderów, zwraca listę adresów z dobrymi holderami
+        addrs = BitTimes.get_token_addresses()
+        hold = BitTimes.get_token_holders(addrs)
+        hold_filtered = Filter.sift_by_holders(hold)
+
+        #Pobieram listę transakcji dla potencjalnie dobrych holderów i sprawdzam je pod względem płynności
+        print(hold_filtered.keys())
+        tran = BscScan.get_tokens_transactions(hold_filtered.keys())
+        tran_filtered = Filter.sift_by_transactions(tran)
+        print(tran_filtered.keys())
+
+        pd.Series(list(tran_filtered.keys())).to_csv("TokensToBuy.csv")
+
+
+if __name__ == '__main__':
+    Main.run()
 
 
 
 
 
 
-addrs = BitTimes.get_token_addresses()
-#tran = BscScan.get_tokens_transactions(addr.keys())
-#supp = BscScan.get_tokens_supply(addr.keys())
 
-hold = BitTimes.get_token_holders(addrs)
-hold2 = Tokens.sift_by_holders(hold)
 
-print(len(hold), len(hold2))
+
+
+
 
 
 
