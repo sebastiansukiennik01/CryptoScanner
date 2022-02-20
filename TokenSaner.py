@@ -170,8 +170,18 @@ class Filter:
 
     @staticmethod
     def sift_by_holders(holders: dict):
+        """
+        Filters addresses by holders. If a token has :
+         - a holder that owns more then 30% of shares and is not a PancakeSwap/Null/Contract address
+         - less then 10 holders
+         - a holder that owns more then 90% of shares
+         then this token is dropped from the dictionary.
 
-        print("################\nFiltrowanie pod względem holderów")
+        :param holders: Dictionary {address : holders list}
+        :return: Dictionary {address : holders list}
+        """
+
+        print("################\n Filtrowanie pod względem holderów")
         result_holders = holders.copy()
 
         for a, h in holders.items():
@@ -204,7 +214,13 @@ class Filter:
 
     @staticmethod
     def sift_by_transactions(transactions: dict):
+        """
+        Filters addresses by transaction. If a token has on average less then one transaction per minute (for last 10 minutes)
+        then it's dropped from the dictionary.
 
+        :param transactions: Dictionary {address : transactions}
+        :return: Dictionary {address : transactions}
+        """
         print("################\nFiltrowanie pod względem transakcji")
         result_transactions = transactions.copy()
         for a, t in transactions.items():
@@ -212,8 +228,8 @@ class Filter:
             print(a)
             #wylicza średnie natężęnie tradeów w ostatnich 10 minutach
             last_10_min = t.loc[t['Date'] > t.loc[t.shape[0]-1, 'Date']-pd.DateOffset(minutes=10), :]
-            last_10_min.loc[:,'TimeDelta'] = last_10_min['Date'].shift(-1).sub(last_10_min['Date'])
-            if(last_10_min['TimeDelta'].mean() > pd.Timedelta(minutes=1)):
+            last_10_min.loc[:, 'TimeDelta'] = last_10_min['Date'].shift(-1).sub(last_10_min['Date'])
+            if last_10_min['TimeDelta'].mean() > pd.Timedelta(minutes=1):
                 print(f"Usuwam token {a}, bo srednia częstotliwość transakcji w ostatnich 10 minutach jest mniejsza niż 1 na minutę")
                 del result_transactions[a]
                 continue
