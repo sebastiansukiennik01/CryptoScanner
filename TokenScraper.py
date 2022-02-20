@@ -229,7 +229,7 @@ class Filter:
             #wylicza średnie natężęnie tradeów w ostatnich 10 minutach
             last_10_min = t.loc[t['Date'] > t.loc[t.shape[0]-1, 'Date']-pd.DateOffset(minutes=10), :]
             last_10_min.loc[:, 'TimeDelta'] = last_10_min['Date'].shift(-1).sub(last_10_min['Date'])
-            if last_10_min['TimeDelta'].mean() > pd.Timedelta(minutes=1):
+            if last_10_min['TimeDelta'].mean() > pd.Timedelta(minutes=2):
                 print(f"Usuwam token {a}, bo srednia częstotliwość transakcji w ostatnich 10 minutach jest mniejsza niż 1 na minutę")
                 del result_transactions[a]
                 continue
@@ -252,6 +252,7 @@ class Main:
         print(tran_filtered.keys())
 
         pd.Series(list(tran_filtered.keys())).to_csv("TokensToBuy.csv")
+
 
 
 if __name__ == '__main__':
