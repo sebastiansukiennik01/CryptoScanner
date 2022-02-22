@@ -3,6 +3,9 @@ import time
 
 import pandas as pd
 import requests
+import cloudscraper
+
+
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
@@ -23,11 +26,25 @@ class BitTimes:
         resp_list = resp.text.split('<tr data-network="BSC">')
         del resp_list[0]
 
+        df = pd.DataFrame()
         token_addresses = {}
         for i in resp_list:
             token_address = i.split('href="')[1].split('">')[0].split('-')[-1].split('.')[0]
             token_symbol = i.split('title=')[1].split('(')[1].split(')')[0]
+            token_datetime = i.split('text-align: center;" title=')[2].split('Deploy At')[1].split('data-breakpoints')[0].replace('"', '')[1:-1]
+
             token_addresses[token_address] = token_symbol
+            df = df.append({'Address': token_address, 'Symbol': token_symbol, 'DateTime': token_datetime}, ignore_index=True)
+
+        previous_newest_tokens = pd.read_csv("NewestBitTimesTokens.csv", index_col=0)
+        dropped_duplicates = pd.concat([previous_newest_tokens, df]).drop_duplicates(keep=False)
+        if not dropped_duplicates.empty:
+            dropped_duplicates = dropped_duplicates[dropped_duplicates.iloc[-1, 2] < dropped_duplicates['DateTime']]
+            print(dropped_duplicates)
+        else:
+            print("nie ma zadnych nowych tokenów")
+
+        df.to_csv('NewestBitTimesTokens.csv')
 
         return token_addresses
 
@@ -254,9 +271,8 @@ class Main:
         pd.Series(list(tran_filtered.keys())).to_csv("TokensToBuy.csv")
 
 
-
 if __name__ == '__main__':
-    Main.run()
+    addrs = BitTimes.get_token_addresses()
 
 
 
