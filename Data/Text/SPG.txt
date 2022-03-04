@@ -1,0 +1,1 @@
+{"data": {"ethereum": {"dexTrades": null}}, "errors": [{"message": "Multiple (173746) currencies found by  symbol ", "locations": [{"line": 4, "column": 5}], "path": ["ethereum", "dexTrades"], "error_type": "client"}]}
