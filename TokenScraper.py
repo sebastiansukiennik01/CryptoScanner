@@ -1,4 +1,5 @@
 import collections
+import datetime
 import json
 
 import pandas as pd
@@ -10,15 +11,18 @@ pd.set_option('display.width', None)
 
 
 class BitTimes:
-    url = "https://thebittimes.com/list-coins-BSC.html"
+
+    url = "https://thebittimes.com/coins-new.html"
 
     @staticmethod
     def get_token_addresses():
         """
-        Scrapes token addresses from https://thebittimes.com/list-coins-BSC.html
+        Scrapes token addresses from https://thebittimes.com/coins-new.html
 
         :return: list of addresses
         """
+
+        print(f"\n\n----------------- Pobieranie nowych tokenów z BitTimes-----------------")
         resp = requests.get(BitTimes.url)
         resp_list = resp.text.split('<tr data-network="BSC">')
         del resp_list[0]
@@ -29,11 +33,15 @@ class BitTimes:
             token_address = i.split('href="')[1].split('">')[0].split('-')[-1].split('.')[0]
             token_symbol = i.split('title=')[1].split('(')[1].split(')')[0]
             token_datetime = i.split('text-align: center;" title=')[2].split('Deploy At')[1].split('data-breakpoints')[0].replace('"', '')[1:-1]
+            token_chain = i.split('notranslate hide-mobile" style=')[1].split('data-breakpoints="xs">')[1].split("</td>")[0]
+            if "BSC" not in token_chain:
+                print("NIE BSC\n\n\n\n")
+                continue
 
             df = df.append({'Address': token_address, 'Symbol': token_symbol, 'DateTime': token_datetime}, ignore_index=True)
-
-        previous_newest_tokens = pd.read_csv("NewestBitTimesTokens.csv", index_col=0)
+        previous_newest_tokens = pd.read_csv("/Users/sebastiansukiennik/Desktop/PycharmProjects/PierwszyMilion/NewestBitTimesTokens.csv", index_col=0)
         dropped_duplicates = pd.concat([previous_newest_tokens, df]).drop_duplicates(keep=False)
+
         if not dropped_duplicates.empty:
             dropped_duplicates = dropped_duplicates[dropped_duplicates.iloc[-1, 2] < dropped_duplicates['DateTime']] # jeżeli zostały jakieś stare to tu są odrzucane przez porównanie daty
             print(dropped_duplicates)
@@ -42,10 +50,7 @@ class BitTimes:
 
         for row in dropped_duplicates.iterrows():
             token_addresses[row[1]['Address']] = row[1]['Symbol']
-
         df.to_csv('NewestBitTimesTokens.csv')
-        print(dropped_duplicates)
-        print("tu jesteś", token_addresses)
 
         return token_addresses
 
@@ -58,6 +63,8 @@ class BitTimes:
         :param addresses: dict of addresses and symbols
         :return: Dictionary of dataframes with share holders
         """
+
+        print(f"\n\n----------------- Pobieranie holderów dla tokenów -----------------")
         holders = {}
         for addr, symb in addresses.items():
             resp = requests.get(f"https://thebittimes.com/token-{symb}-BSC-{addr}.html")
@@ -92,6 +99,7 @@ class BscScan:
         :param addresses: list of tokens adresses
         :return: Dictionary { address : transactions_dataframe }
         """
+        print(f"\n\n----------------- Pobieranie transakcji z BscScan-----------------")
         transactions = {}
         for a in addresses:
             print(a)
@@ -199,13 +207,11 @@ class Filter:
         :return: Dictionary {address : holders list}
         """
 
-        print("################\n Filtrowanie pod względem holderów")
+        print(f"\n\n----------------- Filtrowanie pod względem holderów -----------------")
         result_holders = holders.copy()
 
         for a, h in holders.items():
-            print(a)
-
-            #sprawdzam czy jest jakikolwiek wiekszy do 30% a potem czy jest contractem/PancakeSwapem/Nullem
+            # sprawdzam czy jest jakikolwiek wiekszy do 30% a potem czy jest contractem/PancakeSwapem/Nullem
             if (h['percentage'] > 0.3).any():
                 h_gt_30 = h.loc[h['percentage'] > 0.3, :]
                 for row in h_gt_30.iterrows():
@@ -216,13 +222,13 @@ class Filter:
                 if not(a in result_holders.keys()):
                     continue
 
-            #sprawdzam czy jest więcej niż 10 holderów
+            # sprawdzam czy jest więcej niż 10 holderów
             if h.shape[0] < 7:
                 print(f"Usuwam adres {a} bo jest mniej niz 10 holderów")
                 del result_holders[a]
                 continue
 
-            #sprawdzam czy jakikolwiek holder ma powyżej 90% udziałów
+            # sprawdzam czy jakikolwiek holder ma powyżej 90% udziałów
             if (h['percentage'] > 0.9).any():
                 print(f"Usuwam adres {a} bo jeden adres ma więcej niż 90% wszystkich tokenów")
                 del result_holders[a]
@@ -239,15 +245,15 @@ class Filter:
         :param transactions: Dictionary {address : transactions}
         :return: Dictionary {address : transactions}
         """
-        print("################\nFiltrowanie pod względem transakcji")
+
+        print(f"\n\n----------------- Filtrowanie pod względem transakcji -----------------")
         result_transactions = transactions.copy()
         for a, t in transactions.items():
-
             print(a)
-            #wylicza średnie natężęnie tradeów w ostatnich 10 minutach
+            # wylicza średnie natężęnie tradeów w ostatnich 10 minutach
             last_5_min = t.loc[t['Date'] > t.loc[t.shape[0] - 1, 'Date'] - pd.DateOffset(minutes=5), :]
-            last_5_min.loc[:, 'TimeDelta'] = last_5_min['Date'].shift(-1).sub(last_5_min['Date'])
-            if last_5_min['TimeDelta'].mean() > pd.Timedelta(minutes=2):
+            last_5_min.loc[:, 'TimeDelta'] = last_5_min.loc[:, 'Date'].shift(-1).sub(last_5_min['Date'])
+            if last_5_min.loc[:, 'TimeDelta'].mean() > pd.Timedelta(minutes=2):
                 print(f"Usuwam token {a}, bo srednia częstotliwość transakcji w ostatnich 10 minutach jest mniejsza niż 1 na minutę")
                 del result_transactions[a]
                 continue
@@ -262,29 +268,38 @@ class Filter:
         :return: cleaned list of addresses
         """
 
+        print(f"\n\n----------------- Filtrowanie pod względem volume i ICO -----------------")
+        # pobieranie danych historyzcnych z bitquery
         hlocv_df = BitQuery().run_multiple_queries(addresses)
         cleaned_addresses = list(addresses)
-        for a, df in hlocv_df.items():
-            if df.empty:
-                continue
-            df['timeInterval_minute'] = pd.to_datetime(df['timeInterval_minute'])
+        result_df = pd.DataFrame()
 
-            #jeżeli token utworzony wcześniej niż 15 minut temu, lub średnia wielkość transakcji na minute nie przekracza 50 dolarów to usuwam go z listy
-            if df.loc[0, 'timeInterval_minute'] < (pd.Timestamp.now() - pd.DateOffset(hours=1, minutes=15)):
+        for a, df in hlocv_df.items():
+            print("\n", a)
+            if df.empty:
+                cleaned_addresses.remove(a)
+                continue
+            df.loc[:, 'timeInterval_minute'] = pd.to_datetime(df['timeInterval_minute'])
+
+            # jeżeli token utworzony wcześniej niż 15 minut temu, lub średnia wielkość transakcji na minute nie przekracza 50 dolarów to usuwam go z listy
+            if df.loc[0, 'timeInterval_minute'] < (pd.Timestamp.now() - pd.DateOffset(hours=1, minutes=20)):
                 print(f"Usuwam {a} bo utworzony o {df.loc[0, 'timeInterval_minute']}")
                 cleaned_addresses.remove(a)
             elif df['tradeAmount'].mean() < 50:
                 print(f"Usuwam {a} bo średnia wielkość transakcji: {df['tradeAmount'].mean()}")
                 cleaned_addresses.remove(a)
 
-        print("cleaned: ", cleaned_addresses)
+            if a in cleaned_addresses and not df.empty:
+
+                result_df = result_df.append(pd.DataFrame({"address": a, 'entry_price': df.iloc[-1, -2], "entry_time": str(datetime.datetime.now())}), ignore_index=True)
 
 
+        return result_df
 
 
 class BitQuery:
 
-    def __init__(self, baseAddress="0xD302c09BC32aEF53146B6bA7BC420F5CACa897f6", quoteAddress="0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", from_date="2019-11-01", minute_interval=1):
+    def __init__(self, baseAddress="0xD302c09BC32aEF53146B6bA7BC420F5CACa897f6", quoteAddress="0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", from_date=str(datetime.datetime.today().date()), minute_interval=1):
         """
         Initializes BitQuery object with headers: API key and query: contains query expression, which states which parameters (symbol, address, open, close, etc.)
         should be returned
@@ -326,7 +341,6 @@ class BitQuery:
         else:
             raise Exception('Query failed and return code is {}.      {}'.format(request.status_code, self.query))
 
-
     def run_multiple_queries(self, addresses: list):
         """
         Calls run_query() method, and then saves the result to hlocv dictionary {address: df_historical_hlocv}
@@ -334,8 +348,8 @@ class BitQuery:
         :return: Dictionary {address: df_historical_hlocv}
         """
 
-        #Pobieranie danych historycznych dla listy adresów
-        print(f"tokeny do sprawdzenia \n{addresses}")
+        # Pobieranie danych historycznych dla listy adresów
+        print(f"\n\n----------------- Pobieranie danych historycznych -----------------")
         hlocv = {}
         for a in addresses:
             self.__init__(baseAddress=a)
@@ -345,8 +359,7 @@ class BitQuery:
                 for i in result:
                     temp.append(Assisting().flatten(i))
             except:
-                print(type(result))
-                print(a)
+                print(f"nie udało się spłaszczyć {a}")
 
             df = pd.DataFrame(temp)
             hlocv[a] = df
@@ -358,13 +371,40 @@ class BitQuery:
 
 class Assisting:
 
+    @staticmethod
+    def get_new_data():
+        """
+        Main function, calls other functions to collect addresses, then filters them based on holders, transactions,
+        volume and launch date. Finally saves and returns a dataframe consisting of tokens: address, latest close price and timestamp.
+
+        :return: DataFrame with columns =[address, close_price, entry_time]
+        """
+        # Pobiera adresy
+        addrs = BitTimes.get_token_addresses()
+
+        # sprawdza holderów, zwraca listę adresów z dobrymi holderami
+        '''
+        hold = BitTimes.get_token_holders(addrs)
+        hold_filtered = Filter.sift_by_holders(hold)
+        '''
+
+        # filtruję adresy pod względem płynności z listy transakcji
+        tran = BscScan.get_tokens_transactions(addrs)
+        tran_filtered = Filter.sift_by_transactions(tran)
+
+        # filtruje adresy pod względem volume i daty ICO
+        vol_lnch_filterd_addresses = Filter.sift_by_volume_launchDate(list(tran_filtered.keys()))
+        vol_lnch_filterd_addresses.to_csv("TokensToBuy.csv")
+
+        return vol_lnch_filterd_addresses
+
     def flatten(self, d, parent_key='', sep='_'):
         """
         Converts nested dictionaries into flattened ones
-        :param d:
+        :param d: dictionary to flatten
         :param parent_key:
         :param sep:
-        :return:
+        :return: flattened (1-D) dictionary
         """
         items = []
         for k, v in d.items():
@@ -374,3 +414,5 @@ class Assisting:
             else:
                 items.append((new_key, v))
         return dict(items)
+
+
