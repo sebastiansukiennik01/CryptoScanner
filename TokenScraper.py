@@ -278,6 +278,7 @@ class Filter:
         for a, df in hlocv_df.items():
             if df.empty:
                 cleaned_addresses.remove(a)
+                print(f"Usuwam {a} bo ma pusty dataframe hlocv")
                 continue
             df.loc[:, 'timeInterval_minute'] = pd.to_datetime(df['timeInterval_minute'])
 
@@ -300,7 +301,7 @@ class Filter:
 
 class BitQuery:
 
-    def __init__(self, baseAddress="0xD302c09BC32aEF53146B6bA7BC420F5CACa897f6", quoteAddress="0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", from_date=str(datetime.datetime.today().date()), minute_interval=1):
+    def __init__(self, baseAddress="0xD302c09BC32aEF53146B6bA7BC420F5CACa897f6", quoteAddress="0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", from_date='2019-01-01', minute_interval=1):
         """
         Initializes BitQuery object with headers: API key and query: contains query expression, which states which parameters (symbol, address, open, close, etc.)
         should be returned
