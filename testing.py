@@ -1,10 +1,4 @@
-import datetime
-import smtplib
-
-import pandas as pd
 from TokenScraper import *
-
-
 
 tokens_tobuy = Assisting.get_new_data()
 #tokens_tobuy = pd.read_csv("TokensToBuy.csv", index_col=0)

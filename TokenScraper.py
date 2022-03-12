@@ -18,9 +18,12 @@ class BitTimes:
     @staticmethod
     def get_token_addresses():
         """
-        Scrapes token addresses from https://thebittimes.com/coins-new.html
+        Scrapes new token addresses from https://thebittimes.com/coins-new.html
+        Adds new addresses to DataV2/HistoricTokens.csv where all ever colelcted addresses are stored.
+        Saves current new addresses to NewestBitimeTokens.csv (50 tokens listed on BitTimes right now)
+        Returns lsit of addreses that were added on BitTimes since last iteration of this functions.
 
-        :return: list of addresses
+        :return: dict of new addresses {address: tokenSymbol}
         """
 
         print("\n\n----------------- Pobieranie nowych tokenow z BitTimes-----------------")
@@ -40,8 +43,12 @@ class BitTimes:
                 continue
 
             df = df.append({'Address': token_address, 'Symbol': token_symbol, 'DateTime': token_datetime}, ignore_index=True)
-        previous_newest_tokens = pd.read_csv("/Users/sebastiansukiennik/Desktop/PycharmProjects/PierwszyMilion/NewestBitTimesTokens.csv", index_col=0)
+        previous_newest_tokens = pd.read_csv("/Users/sebastiansukiennik/Desktop/PycharmProjects/PierwszyMilion/DataV2/NewestBitTimesTokens.csv", index_col=0)
+        historic_tokens = pd.read_csv("DataV2/HistoricTokens.csv", index_col=0)
         dropped_duplicates = pd.concat([previous_newest_tokens, df]).drop_duplicates(keep=False)
+        historic_tokens = historic_tokens.append(dropped_duplicates, ignore_index=True)
+        historic_tokens.to_csv("DataV2/HistoricTokens.csv")
+
 
         if not dropped_duplicates.empty:
             dropped_duplicates = dropped_duplicates[dropped_duplicates.iloc[-1, 2] < dropped_duplicates['DateTime']]
@@ -51,7 +58,7 @@ class BitTimes:
 
         for row in dropped_duplicates.iterrows():
             token_addresses[row[1]['Address']] = row[1]['Symbol']
-        df.to_csv('NewestBitTimesTokens.csv')
+        df.to_csv('DataV2/NewestBitTimesTokens.csv')
 
         return token_addresses
 
@@ -295,7 +302,7 @@ class Filter:
 
             # sprawdzam czy jest więcej niż 10 holderów
             if h.shape[0] < 7:
-                print(f"Usuwam adres {a} bo jest mniej niz 10 holderów")
+                print(f"Usuwam adres {a} bo jest mniej niz 7 holderów")
                 del result_holders[a]
                 continue
 
@@ -332,14 +339,14 @@ class Filter:
         return result_transactions
 
     @staticmethod
-    def sift_by_volume_launchDate(addresses: list):
+    def sift_by_hlocv(addresses: list):
         """
         Checks if the volume for last 5 minutes of transactions is sufficient, if not they're dropped.
         :param addresses: list of addresses
         :return: cleaned list of addresses
         """
 
-        print(f"\n\n----------------- Filtrowanie pod względem volume i ICO -----------------")
+        print(f"\n\n----------------- Filtrowanie pod względem HLOCV -----------------")
         # pobieranie danych historyzcnych z bitquery
         hlocv_df = BitQuery().run_multiple_queries(addresses)
         cleaned_addresses = list(addresses)
@@ -347,22 +354,43 @@ class Filter:
 
         print(hlocv_df.keys())
         for a, df in hlocv_df.items():
+
+            #usuwa jeżeli brakuje danych HLOCV, czyli prawdopodobnie brak transackji
             if df.empty:
                 cleaned_addresses.remove(a)
                 print(f"Usuwam {a} bo ma pusty dataframe hlocv")
                 continue
-            df.loc[:, 'timeInterval_minute'] = pd.to_datetime(df['timeInterval_minute'])
+            df.loc[:, 'timeInterval_minute'] = pd.to_datetime(df.loc[:, 'timeInterval_minute'])
+            df['timeInterval_minute_diff'] = df.loc[:, 'timeInterval_minute'].diff(1)
+            df['close_price'] = pd.to_numeric(df['close_price'])
+            df['close_price_pctchange'] = df.loc[:, 'close_price'].pct_change()
 
-            # jeżeli token utworzony wcześniej niż 15 minut temu, lub średnia wielkość transakcji na minute nie przekracza 50 dolarów to usuwam go z listy
-            if df.loc[0, 'timeInterval_minute'] < (pd.Timestamp.now() - pd.DateOffset(hours=1, minutes=20)):
+            # jeżeli token utworzony wcześniej niż 20 minut temu to usuwam go z listy
+            if df.loc[0, 'timeInterval_minute'] < (pd.Timestamp.now() - pd.DateOffset(hours=4, minutes=20)):
                 print(f"Usuwam {a} bo utworzony o {df.loc[0, 'timeInterval_minute']}")
                 cleaned_addresses.remove(a)
-            elif df['tradeAmount'].mean() < 50:
-                print(f"Usuwam {a} bo średnia wielkość transakcji: {df['tradeAmount'].mean()}")
+
+            # jeżeli średnia wielkość transakcji w ostatnich 3 minutach nie przekracza 50 dolarów to usuwam
+            elif df.iloc[-5:, 7].mean() < 50:
+                print(f"Usuwam {a} bo średnia wielkość transakcji: {df.loc[:, 'tradeAmount'].mean()}")
+                cleaned_addresses.remove(a)
+
+            # jeżeli w ostatnich 3 minutach nie było regularncyh transakcji
+            elif df.iloc[-3:, 8].mean() != pd.Timedelta(minutes=1):
+                print(f"Usuwam {a} bo średni czas między ostatnimi transakcjami: {df.iloc[-3:, 8].mean()}")
+                cleaned_addresses.remove(a)
+
+            # jeżeli 3 transakcji od końca była wcześniej niż 6 minut temu to odrzucam
+            elif df.iloc[-3, 0] < pd.Timestamp.now() - pd.DateOffset(minutes=6):
+                print(f"Usuwam {a} bo 3 transakcja od końca była o godz: {df.iloc[-3, 0]} (dawno)")
+                cleaned_addresses.remove(a)
+
+            # jeżeli w ostatnich minutach średni wzrost mniej niż -5% lub suma pct change mniej niż 0 to odrzucam
+            elif df.iloc[-3:, 9].mean() < -0.05 or df.iloc[-3:, 9].sum() < 0:
+                print(f"Usuwam {a} bo 3 ostatnie minuty wskazują downtrend avg_pct_change: {df.iloc[-3:, 9].mean()}, min: {df.iloc[-3:, 9].min()}")
                 cleaned_addresses.remove(a)
 
             if a in cleaned_addresses and not df.empty:
-
                 result_df = result_df.append(pd.DataFrame({"address": [a], 'entry_price': [df.iloc[-1, -2]], "entry_time": [str(datetime.datetime.now())]}), ignore_index=True)
 
         result_df.reset_index(drop=True, inplace=True)
@@ -382,8 +410,7 @@ class Assisting:
         """
         # Pobiera adresy
         addrs = BitTimes.get_token_addresses()
-        #testowe
-        #addrs = ['0xa7d46c62cdc819e8d5265b2f62e0b753dda2278f', '0xbcb4520ef0333836f372365c050df74ec0a7e2a3', '0x0f77f0ece482c99157c364548d793e506b555ba6', '0xa48384814b28037399d017f587a9f92c147f9140', '0x05ad901cf196cbdceab3f8e602a47aadb1a2e69d', '0x746d4cc53cc1204a66dff61584a3f852fffee6c2', '0x0b4ebd6c5c513111d2d2e32a675aeba0153d41ee', '0xc641ab6964dc059588a97ec765035d194d1adb80', '0xb3e9e1a5e30a3b9a7e893a649f4ff1c59fd89329', '0x0830d1487ccbf87dcd0cd931ed58fbd274ac2a98', '0x0a0ff71eb4d1d3df79d0e873d2b40ee6136a2a59', '0xe6dcf146417483a7ced834e92eb6a8eeacbc252d', '0xa39101619103a30c989f6c764ff7b6069957ee77', '0x7af2fbdf3bb23479507253cff84e4f6923cca3e8', '0x203de499f76f589f80b371a54a98e438339c5563', '0x6098c24090a45f2ca7212a0c3c3d4e3167797afc', '0x5dfa507e007c5a4189cca7fe71620690c29b522f', '0xf1f6e6e48671f74db90d3f1b5c64baf77a68e3bd', '0xd77bd7d2ec26ac2e6ef5c497f500d05f20cc5d87', '0xb9eb5205edf8fdd959e35dea5a71c2655540ab73', '0xbddf4815e9c644c5163d590fe5987c1168e27a3b', '0xc4da8a2d3629412fb78324b482517b9ce92551cd', '0xac59483841b53bffeed1d227736210a02c6d172e', '0xf07cc8c9a1da844229d6893c34a9db7398c7ecf5', '0xc9f65c2be6dc5cd85c756d01522a021655c19dbe', '0xf0a2aebd9296c7e21583fc2092663fdef26c59f7', '0x251bda38dda410103f70175a64a287ca48aef041', '0x07d23bb3d60e30e31ea389782202ea12e8450abe', '0xddc0dbd7dc799ae53a98a60b54999cb6ebb3abf0', '0xad6fedbe366ff6effe05d6eca0cebf658f1a9585', '0xf42ef4f1a773c87e401d50f27d6f52e8b1f92518', '0xa71371edba5f08c6f7763c3a17b1de234a3e8b52', '0x6c3d2575cf035d879accca2630a6a1e8ca94e37f', '0xb3a566f889d8f386eafbc345434c0a83359d6920', '0x7a0db8d52e6cafeeeb2d193980d1e51213c633f4', '0x7f7d382ee68c6662262959eb6d4ccb92ecec1750', '0x40c29b371965656aae9668856bc26fd762d14c26', '0xe0268fbbeacbdebf36d6e755bbbd600c65a04057', '0x60e95e30741663a834d71e41bdb350f32a0233d5', '0xa3513f68c0365ad0112995059dfebaf22d99ed1f', '0x141069b85b2204631686c9cff0eb0dcc2368f4d2', '0x5c00ca49d19714b9892762b16e42f468bddf26fb', '0xc4f4cc89210eed0d3ca6239a7221c628ee08a9e5', '0xbc1b4a60ea8f6169d07fa66e74d4ff5ccb87c260', '0x7ba1cb6c8a0445c6b3eb2ef2346b4007eb587db5', '0xde018990bfac1a9bbcdc349be6c14b4ed25fa8ea', '0xb47199e771c13eccb0b65c1f2a7f50e1968e9753', '0x30152961bbb0158986e5f16dee7b2cdc221bd6b3']
+        #do testowania addrs = {'0xdd88c1da6fbc2f5970eec6985f6a7c360f146501': 'Heptic', '0x979925b928ba2161542ea4be1d1c28467b63a335': 'Football', '0xcb4cf660f961aa52200554fa4772e716f771bf5b': 'SSW'}
 
         # sprawdza holderów, zwraca listę adresów z dobrymi holderami
         '''
@@ -396,12 +423,14 @@ class Assisting:
         tran_filtered = Filter.sift_by_transactions(tran)
 
         # filtruje adresy pod względem volume i daty ICO
-        vol_lnch_filterd_addresses = Filter.sift_by_volume_launchDate(list(tran_filtered.keys()))
-        vol_lnch_filterd_addresses.to_csv("TokensToBuy.csv")
-        print(f"\n\n----------------- DataFrame tokenów do kupienia -----------------")
-        print(vol_lnch_filterd_addresses)
+        vol_lnch_filterd = Filter.sift_by_hlocv(list(tran_filtered.keys()))
+        vol_lnch_filterd.to_csv("DataV2/TokensToBuy.csv")
+        Assisting.addBoughtToHistoric(vol_lnch_filterd)
 
-        return vol_lnch_filterd_addresses
+        print(f"\n\n----------------- DataFrame tokenów do kupienia -----------------")
+        print(vol_lnch_filterd)
+
+        return vol_lnch_filterd
 
     def flatten(self, d, parent_key='', sep='_'):
         """
@@ -420,10 +449,17 @@ class Assisting:
                 items.append((new_key, v))
         return dict(items)
 
+    @staticmethod
     def send_email(tokens, email, password, to_address):
         server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
         server.login(email, password)
         server.sendmail(from_addr="email", to_addrs=to_address, msg=str(tokens))
         server.quit()
 
+    @staticmethod
+    def addBoughtToHistoric(tokensToBuy):
+        if not tokensToBuy.empty:
+            historicTokens = pd.read_csv('DataV2/HistoricTokens.csv', index_col=0)
+            historicTokens.loc[historicTokens['Address'].isin(tokensToBuy['address'].values), 'Bought'] = True
+            historicTokens.to_csv('DataV2/HistoricTokens.csv')
 
