@@ -43,7 +43,7 @@ class BitTimes:
                 continue
 
             df = df.append({'Address': token_address, 'Symbol': token_symbol, 'DateTime': token_datetime}, ignore_index=True)
-        previous_newest_tokens = pd.read_csv("/Users/sebastiansukiennik/Desktop/PycharmProjects/PierwszyMilion/DataV2/NewestBitTimesTokens.csv", index_col=0)
+        previous_newest_tokens = pd.read_csv("DataV2/NewestBitTimesTokens.csv", index_col=0)
         historic_tokens = pd.read_csv("DataV2/HistoricTokens.csv", index_col=0)
         dropped_duplicates = pd.concat([previous_newest_tokens, df]).drop_duplicates(keep=False)
         historic_tokens = historic_tokens.append(dropped_duplicates, ignore_index=True)
@@ -376,7 +376,7 @@ class Filter:
                 cleaned_addresses.remove(a)
 
             # jeżeli w ostatnich 3 minutach nie było regularncyh transakcji
-            elif df.iloc[-3:, 8].mean() != pd.Timedelta(minutes=1):
+            elif df.iloc[-3:, 8].mean() > pd.Timedelta(minutes=1, seconds=20):
                 print(f"Usuwam {a} bo średni czas między ostatnimi transakcjami: {df.iloc[-3:, 8].mean()}")
                 cleaned_addresses.remove(a)
 
