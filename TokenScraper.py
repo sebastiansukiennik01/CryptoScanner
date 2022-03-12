@@ -1,6 +1,7 @@
 import collections
 import datetime
 import json
+import smtplib
 
 import pandas as pd
 import requests
@@ -192,6 +193,76 @@ class BscScan:
             return False
 
 
+class BitQuery:
+
+    def __init__(self, baseAddress="0xD302c09BC32aEF53146B6bA7BC420F5CACa897f6", quoteAddress="0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", from_date='2019-01-01', minute_interval=1):
+        """
+        Initializes BitQuery object with headers: API key and query: contains query expression, which states which parameters (symbol, address, open, close, etc.)
+        should be returned
+        """
+        self.headers = {'X-API-KEY': 'BQYgidAQz9hI3gFDCJKEeBf965EwKdlI'}
+        self.query = """
+    {
+      ethereum(network: bsc) {
+        dexTrades(
+          options: { asc: "timeInterval.minute"}
+          date: {since: """ + f'"{from_date}"' + """}
+          exchangeName: {is: "Pancake v2"}
+          baseCurrency: {is: """ + f'"{baseAddress}"' + """}
+          quoteCurrency: {is: """ + f'"{quoteAddress}"' + """}
+        ) {
+          timeInterval {
+            minute(count: """ + f"{minute_interval}" + """)
+          }
+          baseAmount
+          trades: count
+          maximum_price: quotePrice(calculate: maximum)
+          minimum_price: quotePrice(calculate: minimum)
+          open_price: minimum(of: block, get: quote_price)
+          close_price: maximum(of: block, get: quote_price)
+          tradeAmount(in: USD)
+        }
+      }
+    }
+    """
+
+    def run_query(self):
+        """
+        Runs request to BitQuery for specific query (one exchange pair)
+        :return: JSON with all requested info
+        """
+        request = requests.post('https://graphql.bitquery.io/', json={'query': self.query}, headers=self.headers)
+        if request.status_code == 200:
+            return request.json()
+        else:
+            raise Exception('Query failed and return code is {}.      {}'.format(request.status_code, self.query))
+
+    def run_multiple_queries(self, addresses: list):
+        """
+        Calls run_query() method, and then saves the result to hlocv dictionary {address: df_historical_hlocv}
+        :param addresses: list of addresses
+        :return: Dictionary {address: df_historical_hlocv}
+        """
+
+        # Pobieranie danych historycznych dla listy adresów
+        hlocv = {}
+        for a in addresses:
+            self.__init__(baseAddress=a)
+            result = self.run_query()['data']['ethereum']['dexTrades']
+            temp = []
+            try:
+                for i in result:
+                    temp.append(Assisting().flatten(i))
+            except:
+                print(f"nie udało się spłaszczyć {a}")
+
+            df = pd.DataFrame(temp)
+            hlocv[a] = df
+            print(a)
+
+        return hlocv
+
+
 class Filter:
 
     @staticmethod
@@ -299,76 +370,6 @@ class Filter:
         return result_df
 
 
-class BitQuery:
-
-    def __init__(self, baseAddress="0xD302c09BC32aEF53146B6bA7BC420F5CACa897f6", quoteAddress="0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", from_date='2019-01-01', minute_interval=1):
-        """
-        Initializes BitQuery object with headers: API key and query: contains query expression, which states which parameters (symbol, address, open, close, etc.)
-        should be returned
-        """
-        self.headers = {'X-API-KEY': 'BQYgidAQz9hI3gFDCJKEeBf965EwKdlI'}
-        self.query = """
-    {
-      ethereum(network: bsc) {
-        dexTrades(
-          options: { asc: "timeInterval.minute"}
-          date: {since: """ + f'"{from_date}"' + """}
-          exchangeName: {is: "Pancake v2"}
-          baseCurrency: {is: """ + f'"{baseAddress}"' + """}
-          quoteCurrency: {is: """ + f'"{quoteAddress}"' + """}
-        ) {
-          timeInterval {
-            minute(count: """ + f"{minute_interval}" + """)
-          }
-          baseAmount
-          trades: count
-          maximum_price: quotePrice(calculate: maximum)
-          minimum_price: quotePrice(calculate: minimum)
-          open_price: minimum(of: block, get: quote_price)
-          close_price: maximum(of: block, get: quote_price)
-          tradeAmount(in: USD)
-        }
-      }
-    }
-    """
-
-    def run_query(self):
-        """
-        Runs request to BitQuery for specific query (one exchange pair)
-        :return: JSON with all requested info
-        """
-        request = requests.post('https://graphql.bitquery.io/', json={'query': self.query}, headers=self.headers)
-        if request.status_code == 200:
-            return request.json()
-        else:
-            raise Exception('Query failed and return code is {}.      {}'.format(request.status_code, self.query))
-
-    def run_multiple_queries(self, addresses: list):
-        """
-        Calls run_query() method, and then saves the result to hlocv dictionary {address: df_historical_hlocv}
-        :param addresses: list of addresses
-        :return: Dictionary {address: df_historical_hlocv}
-        """
-
-        # Pobieranie danych historycznych dla listy adresów
-        hlocv = {}
-        for a in addresses:
-            self.__init__(baseAddress=a)
-            result = self.run_query()['data']['ethereum']['dexTrades']
-            temp = []
-            try:
-                for i in result:
-                    temp.append(Assisting().flatten(i))
-            except:
-                print(f"nie udało się spłaszczyć {a}")
-
-            df = pd.DataFrame(temp)
-            hlocv[a] = df
-            print(a)
-
-        return hlocv
-
-
 class Assisting:
 
     @staticmethod
@@ -418,5 +419,11 @@ class Assisting:
             else:
                 items.append((new_key, v))
         return dict(items)
+
+    def send_email(tokens, email, password, to_address):
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(email, password)
+        server.sendmail(from_addr="email", to_addrs=to_address, msg=str(tokens))
+        server.quit()
 
 
