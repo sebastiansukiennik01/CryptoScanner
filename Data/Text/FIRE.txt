@@ -1,0 +1,1 @@
+{"data": {"ethereum": {"dexTrades": null}}, "errors": [{"message": "Currency not found by symbol a><a ", "locations": [{"line": 4, "column": 5}], "path": ["ethereum", "dexTrades"], "error_type": "client"}]}
