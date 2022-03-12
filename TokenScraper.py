@@ -135,7 +135,10 @@ class BscScan:
                     d['topics_0'] = d['topics'][0]
                 del d['topics']
                 df = df.append(d, ignore_index=True)
-            df = df.drop(columns=['data', 'blockNumber', 'gasPrice', 'gasUsed'])
+            try:
+                df = df.drop(columns=['data', 'blockNumber', 'gasPrice', 'gasUsed'])
+            except:
+                print("Bład przy usuwaniu kolumn")
             df['timeStamp'] = df['timeStamp'].apply(int, base=16)
             df['Date'] = pd.to_datetime(df['timeStamp'], unit='s')
             df['Date'] = df['Date'] + pd.DateOffset(hours=1)
@@ -371,6 +374,7 @@ class Filter:
             df['timeInterval_minute_diff'] = df.loc[:, 'timeInterval_minute'].diff(1)
             df['close_price'] = pd.to_numeric(df['close_price'])
             df['close_price_pctchange'] = df.loc[:, 'close_price'].pct_change()
+            print(df)
 
             # jeżeli token utworzony wcześniej niż 20 minut temu to usuwam go z listy
             if df.loc[0, 'timeInterval_minute'] < (pd.Timestamp.now() - pd.DateOffset(hours=4, minutes=20)):
@@ -379,7 +383,7 @@ class Filter:
 
             # jeżeli średnia wielkość transakcji w ostatnich 3 minutach nie przekracza 50 dolarów to usuwam
             elif df.iloc[-5:, 7].mean() < 50:
-                print(f"Usuwam {a} bo średnia wielkość transakcji: {df.loc[:, 'tradeAmount'].mean()}")
+                print(f"Usuwam {a} bo średnia wielkość transakcji: {df.iloc[-5:, 7].mean()}")
                 cleaned_addresses.remove(a)
 
             # jeżeli w ostatnich 3 minutach nie było regularncyh transakcji
@@ -416,8 +420,8 @@ class Assisting:
         :return: DataFrame with columns =[address, close_price, entry_time]
         """
         # Pobiera adresy
-        addrs = BitTimes.get_token_addresses()
-        #do testowania addrs = {'0xdd88c1da6fbc2f5970eec6985f6a7c360f146501': 'Heptic', '0x979925b928ba2161542ea4be1d1c28467b63a335': 'Football', '0xcb4cf660f961aa52200554fa4772e716f771bf5b': 'SSW'}
+        #addrs = BitTimes.get_token_addresses()
+        addrs = {'0xdd88c1da6fbc2f5970eec6985f6a7c360f146501': 'Heptic', '0x979925b928ba2161542ea4be1d1c28467b63a335': 'Football', '0xcb4cf660f961aa52200554fa4772e716f771bf5b': 'SSW'}
 
         # sprawdza holderów, zwraca listę adresów z dobrymi holderami
         '''
