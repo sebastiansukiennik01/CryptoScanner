@@ -420,8 +420,8 @@ class Assisting:
         :return: DataFrame with columns =[address, close_price, entry_time]
         """
         # Pobiera adresy
-        #addrs = BitTimes.get_token_addresses()
-        addrs = {'0xdd88c1da6fbc2f5970eec6985f6a7c360f146501': 'Heptic', '0x979925b928ba2161542ea4be1d1c28467b63a335': 'Football', '0xcb4cf660f961aa52200554fa4772e716f771bf5b': 'SSW'}
+        addrs = BitTimes.get_token_addresses()
+        #addrs = {'0xdd88c1da6fbc2f5970eec6985f6a7c360f146501': 'Heptic', '0x979925b928ba2161542ea4be1d1c28467b63a335': 'Football', '0xcb4cf660f961aa52200554fa4772e716f771bf5b': 'SSW'}
 
         # sprawdza holderów, zwraca listę adresów z dobrymi holderami
         '''
