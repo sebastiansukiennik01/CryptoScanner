@@ -2,6 +2,7 @@ import collections
 import datetime
 import json
 import smtplib
+from pathlib import Path
 
 import pandas as pd
 import requests
@@ -41,13 +42,18 @@ class BitTimes:
             if "BSC" not in token_chain:
                 print("NIE BSC\n\n\n\n")
                 continue
-
             df = df.append({'Address': token_address, 'Symbol': token_symbol, 'DateTime': token_datetime}, ignore_index=True)
-        previous_newest_tokens = pd.read_csv("DataV2/NewestBitTimesTokens.csv", index_col=0)
-        historic_tokens = pd.read_csv("DataV2/HistoricTokens.csv", index_col=0)
+
+        newest_token_path = Path("DataV2/") / "NewestBitTimesTokens.csv"
+        previous_newest_tokens = pd.read_csv(newest_token_path, index_col=0)
+
+        historic_token_path = Path("DataV2/") / "NewestBitTimesTokens.csv"
+        historic_tokens = pd.read_csv(historic_token_path, index_col=0)
         dropped_duplicates = pd.concat([previous_newest_tokens, df]).drop_duplicates(keep=False)
         historic_tokens = historic_tokens.append(dropped_duplicates, ignore_index=True)
-        historic_tokens.to_csv("DataV2/HistoricTokens.csv")
+
+
+        historic_tokens.to_csv(historic_token_path)
 
 
         if not dropped_duplicates.empty:
@@ -58,7 +64,8 @@ class BitTimes:
 
         for row in dropped_duplicates.iterrows():
             token_addresses[row[1]['Address']] = row[1]['Symbol']
-        df.to_csv('DataV2/NewestBitTimesTokens.csv')
+
+        df.to_csv(newest_token_path)
 
         return token_addresses
 
@@ -424,7 +431,8 @@ class Assisting:
 
         # filtruje adresy pod względem volume i daty ICO
         vol_lnch_filterd = Filter.sift_by_hlocv(list(tran_filtered.keys()))
-        vol_lnch_filterd.to_csv("DataV2/TokensToBuy.csv")
+        tokens_tobuy_path = Path("DataV2/") / "TokensToBuy.csv"
+        vol_lnch_filterd.to_csv(tokens_tobuy_path)
         Assisting.addBoughtToHistoric(vol_lnch_filterd)
 
         print(f"\n\n----------------- DataFrame tokenów do kupienia -----------------")
@@ -459,7 +467,9 @@ class Assisting:
     @staticmethod
     def addBoughtToHistoric(tokensToBuy):
         if not tokensToBuy.empty:
-            historicTokens = pd.read_csv('DataV2/HistoricTokens.csv', index_col=0)
+
+            historic_token_path = Path("DataV2/") / "NewestBitTimesTokens.csv"
+            historicTokens = pd.read_csv(historic_token_path, index_col=0)
             historicTokens.loc[historicTokens['Address'].isin(tokensToBuy['address'].values), 'Bought'] = True
-            historicTokens.to_csv('DataV2/HistoricTokens.csv')
+            historicTokens.to_csv(historic_token_path)
 
