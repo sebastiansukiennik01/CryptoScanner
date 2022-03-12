@@ -17,6 +17,3 @@ if not tokens_tobuy.empty:
     Assisting.send_email(tresc, email, passw, to_address=to)
 else:
     print("Nie znaleziono nowych tokenow spelniajacych warunki")
-
-
-
