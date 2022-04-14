@@ -17,20 +17,6 @@
             </Attribute>
           </value>
         </entry>
-        <entry key="/NewestBitTimesTokens.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/TokensToBuy.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
       </map>
     </option>
   </component>
