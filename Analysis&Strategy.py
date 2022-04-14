@@ -1,14 +1,11 @@
 import datetime
 import glob
-import math
 
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-import time
-from sklearn.neighbors._kde import KernelDensity
+import numpy as np
+import pandas as pd
 from scipy.signal import argrelextrema
-
+from sklearn.neighbors._kde import KernelDensity
 
 pd.set_option("display.max_rows", None)
 pd.set_option("display.max_columns", None)
@@ -38,8 +35,7 @@ def calc_additional_columns(dfs):
         #d["CandleStrength"] = (d['C']-d['O'])/(d['H']-d['L'])   # Siła świeczki przyjmuje wartoścci od (-1,1) gdzie 1 to cała zielona świeczka, -1 to cała czerwona,
                                                                 # wynik w okolicy zera oznacza że cena zamknięcia i otwarcią były podobne
         d['Warunek1'] = (d['tradeAmount_pctchange'] > 2) & (d['trades'] > 5) & (d['O_diff'] > 0) # Warunek 1 testowanej strategi, wskazuje miejsca entry
-        if name == "EFT":
-            print(d.head(20))
+
 
     return dfs
 
