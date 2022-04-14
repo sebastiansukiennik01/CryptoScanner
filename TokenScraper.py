@@ -42,6 +42,7 @@ class BitTimes:
             if "BSC" not in token_chain:
                 print("NIE BSC\n\n\n\n")
                 continue
+            token_datetime = pd.to_datetime(token_datetime).tz_convert('Europe/Berlin')
             df = df.append({'Address': token_address, 'Symbol': token_symbol, 'DateTime': token_datetime}, ignore_index=True)
 
         newest_token_path = Path("DataV2/") / "NewestBitTimesTokens.csv"
@@ -55,8 +56,8 @@ class BitTimes:
 
         historic_tokens.to_csv(historic_token_path)
 
-
         if not dropped_duplicates.empty:
+            dropped_duplicates['DateTime'] = pd.to_datetime(dropped_duplicates['DateTime'], utc=True)
             dropped_duplicates = dropped_duplicates[dropped_duplicates.iloc[-1, 2] < dropped_duplicates['DateTime']]
             print(dropped_duplicates)
         else:
@@ -135,11 +136,17 @@ class BscScan:
                     d['topics_0'] = d['topics'][0]
                 del d['topics']
                 df = df.append(d, ignore_index=True)
-            df = df.drop(columns=['data', 'blockNumber', 'gasPrice', 'gasUsed'])
-            df['timeStamp'] = df['timeStamp'].apply(int, base=16)
-            df['Date'] = pd.to_datetime(df['timeStamp'], unit='s')
-            df['Date'] = df['Date'] + pd.DateOffset(hours=1)
-            df.drop(columns=['timeStamp'], inplace=True)
+            try:
+                df = df.drop(columns=['data', 'blockNumber', 'gasPrice', 'gasUsed'])
+            except:
+                print("Bład przy usuwaniu kolumn")
+            try:
+                df['timeStamp'] = df['timeStamp'].apply(int, base=16)
+                df['Date'] = pd.to_datetime(df['timeStamp'], unit='s')
+                df['Date'] = df['Date'] + pd.DateOffset(hours=1)
+                df.drop(columns=['timeStamp'], inplace=True)
+            except:
+                continue
 
             transactions[a] = df
 
@@ -249,7 +256,8 @@ class BitQuery:
         if request.status_code == 200:
             return request.json()
         else:
-            raise Exception('Query failed and return code is {}.      {}'.format(request.status_code, self.query))
+            print(request.status_code)
+            return None
 
     def run_multiple_queries(self, addresses: list):
         """
@@ -363,9 +371,9 @@ class Filter:
         for a, df in hlocv_df.items():
 
             #usuwa jeżeli brakuje danych HLOCV, czyli prawdopodobnie brak transackji
-            if df.empty:
+            if df.empty or df.shape[0] < 3:
                 cleaned_addresses.remove(a)
-                print(f"Usuwam {a} bo ma pusty dataframe hlocv")
+                print(f"Usuwam {a} bo ma pusty dataframe hlocv (za mało danych)")
                 continue
             df.loc[:, 'timeInterval_minute'] = pd.to_datetime(df.loc[:, 'timeInterval_minute'])
             df['timeInterval_minute_diff'] = df.loc[:, 'timeInterval_minute'].diff(1)
@@ -378,8 +386,8 @@ class Filter:
                 cleaned_addresses.remove(a)
 
             # jeżeli średnia wielkość transakcji w ostatnich 3 minutach nie przekracza 50 dolarów to usuwam
-            elif df.iloc[-5:, 7].mean() < 50:
-                print(f"Usuwam {a} bo średnia wielkość transakcji: {df.loc[:, 'tradeAmount'].mean()}")
+            elif df.iloc[-3:, 7].mean() < 50:
+                print(f"Usuwam {a} bo średnia wielkość transakcji: {df.iloc[-5:, 7].mean()}")
                 cleaned_addresses.remove(a)
 
             # jeżeli w ostatnich 3 minutach nie było regularncyh transakcji
@@ -388,14 +396,14 @@ class Filter:
                 cleaned_addresses.remove(a)
 
             # jeżeli 3 transakcji od końca była wcześniej niż 6 minut temu to odrzucam
-            elif df.iloc[-3, 0] < pd.Timestamp.now() - pd.DateOffset(minutes=6):
+            elif df.iloc[-3, 0] < pd.Timestamp.now() - pd.DateOffset(hours=2, minutes=6):
                 print(f"Usuwam {a} bo 3 transakcja od końca była o godz: {df.iloc[-3, 0]} (dawno)")
                 cleaned_addresses.remove(a)
 
-            # jeżeli w ostatnich minutach średni wzrost mniej niż -5% lub suma pct change mniej niż 0 to odrzucam
+            """# jeżeli w ostatnich minutach średni wzrost mniej niż -5% lub suma pct change mniej niż 0 to odrzucam
             elif df.iloc[-3:, 9].mean() < -0.05 or df.iloc[-3:, 9].sum() < 0:
                 print(f"Usuwam {a} bo 3 ostatnie minuty wskazują downtrend avg_pct_change: {df.iloc[-3:, 9].mean()}, min: {df.iloc[-3:, 9].min()}")
-                cleaned_addresses.remove(a)
+                cleaned_addresses.remove(a)"""
 
             if a in cleaned_addresses and not df.empty:
                 result_df = result_df.append(pd.DataFrame({"address": [a], 'entry_price': [df.iloc[-1, -2]], "entry_time": [str(datetime.datetime.now())]}), ignore_index=True)
@@ -417,7 +425,7 @@ class Assisting:
         """
         # Pobiera adresy
         addrs = BitTimes.get_token_addresses()
-        #do testowania addrs = {'0xdd88c1da6fbc2f5970eec6985f6a7c360f146501': 'Heptic', '0x979925b928ba2161542ea4be1d1c28467b63a335': 'Football', '0xcb4cf660f961aa52200554fa4772e716f771bf5b': 'SSW'}
+        #addrs = {'0x3ee761dAA4556b5f3369BD37685124c155AbCaAC': 'ElonBank', '0x85747D5F5fA84E82A611095f02F50dC9a7535868': 'SpaceNiao', '0xF1B3B4eDD546cEf0adC38030Fd0A74533641bd35': 'ScareCron'}
 
         # sprawdza holderów, zwraca listę adresów z dobrymi holderami
         '''
