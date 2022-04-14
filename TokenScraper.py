@@ -481,3 +481,15 @@ class Assisting:
             historicTokens.loc[historicTokens['Address'].isin(tokensToBuy['address'].values), 'Bought'] = True
             historicTokens.to_csv(historic_token_path)
 
+
+class EmailCredentials:
+
+    email = ""
+    password = ""
+
+    @staticmethod
+    def __init__(self):
+        with open("DataV2/credentials.json") as f:
+            data = json.load(f)
+            self.email = data['email']
+            self.password = data['password']
