@@ -49,7 +49,7 @@ class BitTimes:
         tokens_to_check = actual_tokens.append(previous_tokens).drop_duplicates(subset=['Address'], keep=False)  # leaves only those tokens that were not checked last time
         tokens_to_check['DateTime'] = pd.to_datetime(tokens_to_check['DateTime'], utc=True)
 
-        tokens_to_check = tokens_to_check.loc[actual_tokens['DateTime'] > lastDate, :]
+        tokens_to_check = tokens_to_check[actual_tokens['DateTime'] > lastDate]
         print("tokens to check:\n", tokens_to_check)
 
         historic_tokens = historic_tokens.append(actual_tokens, ignore_index=True)  # append tokens (without duplicates) to historic tokens

@@ -1,26 +1,16 @@
 import json
 import smtplib
+import pandas as pd
 
+import Email
 from BitTimes import *
 from BscScan import BscScan
 from Filter import *
+from Email import Email
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
-
-
-class EmailCredentials:
-
-    email = ""
-    password = ""
-
-    @staticmethod
-    def __init__(self):
-        with open("DataV2/credentials.json") as f:
-            data = json.load(f)
-            self.email = data['email']
-            self.password = data['password']
 
 
 class Assisting:
@@ -58,17 +48,6 @@ class Assisting:
 
         return vol_lnch_filterd
 
-
-    @staticmethod
-    def send_email(tokens, email, password, to_address):
-        server = smtplib.SMTP("smtp.mail.yahoo.com", 587)
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login("sebastiansukiennik@yahoo.com", "gacsot-ninbi4-peXhim")
-        server.sendmail(from_addr=email, to_addrs=to_address, msg=tokens.encode())
-        server.quit()
-
     @staticmethod
     def addBoughtToHistoric(tokensToBuy):
         if not tokensToBuy.empty:
@@ -80,20 +59,21 @@ class Assisting:
 
 
 if __name__ == '__main__':
-    #tokens_tobuy = Assisting.get_new_data()
+    tokens_tobuy = Assisting.get_new_data()
+    print(tokens_tobuy)
+    print(tokens_tobuy.info())
     to = ['sebsuk2137@gmail.com']
 
-    if True:
-        #tresc = tokens_tobuy['address']
-        tresc = pd.DataFrame(['cokolwiek', 'drugie']).iloc[:, 0].values
+    if not tokens_tobuy.empty:
+        values = tokens_tobuy['Address']
+        print(values)
         wynik = ""
-        for t in tresc:
-            wynik = wynik + "," + t
-        print(wynik.encode())
-        Assisting.send_email(" m".encode(), EmailCredentials.email, EmailCredentials.password, to_address=['sebsuk2137@gmail.com'])
+        for v in values:
+            wynik += str(v) + "\n"
+
+        Email.send_email(wynik.encode(), to_address=['sebsuk2137@gmail.com'])
     else:
-        #tresc = "nic nie ma ale dzialam".encode('utf-8').strip()
-        #Assisting.send_email(tresc, email, passw, to_address=to)
+        Email.send_email("brak tokenów do kupienia".encode(), to_address=['sebsuk2137@gmail.com'])
         print("Nie znaleziono nowych tokenow spelniajacych warunki")
 
 
