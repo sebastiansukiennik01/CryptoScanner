@@ -116,7 +116,7 @@ class Filter:
                 continue
 
             # jeżeli w ostatnich 3 minutach nie było regularncyh transakcji
-            if df.iloc[-3:, 8].mean() > pd.Timedelta(minutes=2):
+            if df.iloc[-3:, 8].mean() > pd.Timedelta(minutes=3):
                 print(f"Usuwam {a} bo średni czas między ostatnimi transakcjami: {df.iloc[-3:, 8].mean()}")
                 cleaned_addresses.remove(a)
                 tokens_to_recheck.append(a)  # dodaje żeby sprawdzać w pyszłości

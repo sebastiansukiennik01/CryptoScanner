@@ -1,3 +1,4 @@
+import datetime
 import json
 import smtplib
 import pandas as pd
@@ -55,6 +56,7 @@ class Assisting:
             historic_token_path = Path("DataV2/") / "HistoricTokens.csv"
             historicTokens = pd.read_csv(historic_token_path, index_col=0)
             historicTokens.loc[historicTokens['Address'].isin(tokensToBuy['address'].values), 'Bought'] = True
+            historicTokens.loc[historicTokens['Bought'] == True, 'BoughtOnDatetime'] = str(datetime.datetime.now())
             historicTokens.to_csv(historic_token_path)
 
 

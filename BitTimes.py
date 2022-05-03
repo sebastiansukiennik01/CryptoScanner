@@ -40,17 +40,19 @@ class BitTimes:
         historic_token_path = Path("DataV2/") / "HistoricTokens.csv"
         historic_tokens = pd.read_csv(historic_token_path, index_col=0)
         previous_tokens_path = Path("DataV2/") / "NewestBitTimesTokens.csv"
-        previous_tokens = pd.read_csv(previous_tokens_path, index_col=0, parse_dates=['DateTime'])
+        previous_tokens = pd.read_csv(previous_tokens_path, index_col=0)
         actual_tokens.to_csv(previous_tokens_path)
 
         print("actual\n", actual_tokens)
         print("previous\n", previous_tokens)
-        lastDate = pd.to_datetime(previous_tokens.iloc[0, 2], utc=True)
+
         tokens_to_check = actual_tokens.append(previous_tokens).drop_duplicates(subset=['Address'], keep=False)  # leaves only those tokens that were not checked last time
         tokens_to_check['DateTime'] = pd.to_datetime(tokens_to_check['DateTime'], utc=True)
-
-        tokens_to_check = tokens_to_check[actual_tokens['DateTime'] > lastDate]
-        print("tokens to check:\n", tokens_to_check)
+        try:
+            lastDate = pd.to_datetime(previous_tokens.iloc[0, 2], utc=True)
+            tokens_to_check = tokens_to_check[tokens_to_check['DateTime'] > lastDate]
+        finally:
+            print("tokens to check:\n", tokens_to_check)
 
         historic_tokens = historic_tokens.append(actual_tokens, ignore_index=True)  # append tokens (without duplicates) to historic tokens
         historic_tokens.drop_duplicates(subset=['Address'], keep="first", inplace=True)
